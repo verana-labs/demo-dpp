@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Draft — started 2026-10-21, not yet implemented** |
+| Status | **In progress — started 2026-10-21. Decisions D1–D6 locked; repository scaffolding, schema refactor with regression checks, and the governance framework source draft are implemented. First deployment (Phase 4) not yet run.** |
 | Decision | **Option C**: create a *new* organization for DPP in this repo (`demo-dpp`), reusing `verana-demos/organization-vs` as the code template. Do **not** reuse the live "Verana Example Organization" Corporation or its "example" Ecosystem. |
 | Reference implementation | [`verana-labs/verana-demos`](https://github.com/verana-labs/verana-demos), `organization-vs/` + `.github/workflows/1_deploy-organization-vs.yml` (cloned locally at commit `e2b9983`) |
 | Target (first) | Verana **devnet**, Verifiable Trust **v4**, `vs-agent v2.0.0-dev.97`, `veranad v0.10.6` |
@@ -234,8 +234,8 @@ The first draft already exists in this repo under `passport/`, authored for **Pa
 
 **Remaining Phase 2 tasks:**
 
-- [ ] Apply the `$defs`-inlining refactor to `passport/papapo-product-passport.schema.json` and add the two-path AJV regression check (above).
-- [ ] **Add the material-lot join key to `materials[]` before the schema is deployed** (on-chain schemas are immutable): a `materialId` / `materialLotId` (and optionally `supplierId` and evidence-credential references). Today `materials[]` only carries `part`/`description`/`composition`/`recycledContentPercent`, so a product passport can *assert* composition in text but cannot be machine-joined to a supplier's lot credential — see §6.4.
+- [x] Apply the `$defs`-inlining refactor to `passport/papapo-product-passport.schema.json` and add the two-path regression check (`passport/validate.mjs`, run with `npm run validate` in `passport/`). All 9 checks pass as of 2026-10-21.
+- [x] **Add the material-lot join key to `materials[]` before the schema is deployed** (on-chain schemas are immutable): `materialId`, `materialLotId`, `supplierId` and `evidenceCredentialIds` added to `materials[]` items (all optional), and the full example now demonstrates `materialLotId` values. See §6.4.
 - [ ] Replace placeholder data in examples before any real issuance (example GTINs `7701234567890…`, `materials[].composition: "TBD"`, Medusa ids `prod_01EXAMPLE`/`variant_01EX*`).
 - [ ] Decide AnonCreds support (decision D7). The standalone agent creates no cred-def, but a later DPP issuer will need one — and AnonCreds' flat attribute model does not natively carry nested objects/arrays such as `materials[]`, `variants[]`, `manufacturer{}`. If AnonCreds issuance is required, design a flattened companion schema/encoding; W3C/VTJSC (JSON-schema) credentials carry the nested draft natively.
 
@@ -347,14 +347,14 @@ Behaviour inherited from the demos, to keep:
 **Exit criteria:** RBAC checks above all `yes` (directly or after the one-time admin pre-creation), secrets present, DNS resolves to the ingress, ECS endpoints answer.
 
 ### Phase 1 — Scaffold repository
-- [ ] Copy `common/`, create `dpp-vs/` + workflow per §5 (content TBDs left as explicit placeholders).
+- [x] Copy `common/`, create `dpp-vs/` + workflow per §5.
 - [ ] Local dry check: `./dpp-vs/scripts/setup.sh` against devnet with local mnemonics (optional but recommended before first CI run).
 
 **Exit criteria:** repo layout of §4 exists; `setup.sh` reaches a running agent locally or the workflow parses (`step=deploy` not yet run is fine).
 
 ### Phase 2 — DPP content
-- [ ] Adopt `passport/` as the DPP schema draft (§6.2): point `$PASSPORT_SCHEMA_FILE` at the full schema (no copy anywhere), replace example placeholder data, test chain/agent acceptance (fallback: point the same variable at the min schema).
-- [ ] Produce the EGF per D5 (§6.3): write the minimal DPP EGF source in `egf/`, build the PDF, publish it as the `egf-v1` GitHub Release asset in this repo, and set `EGF_DOC_URL` to the release-asset URL (verify the digest computes with `curl -sfL`). Apply the locked organization (D2) and service (D3) claims identically in `config.env` + `deployment.yaml`.
+- [x] Adopt `passport/` as the DPP schema draft (§6.2): `$PASSPORT_SCHEMA_FILE` points at the full schema (no copy anywhere). Still to do during/after first deployment: replace example placeholder data with real product data, and pass the chain-acceptance gate (fallback: point the same variable at the min schema).
+- [ ] Produce the governance document per D5 (§6.3): source draft written in `egf/dpp-ecosystem-egf-v1.md`; **still to do:** build the PDF file, publish it as the `egf-v1` GitHub Release asset in this repo, and set `EGF_DOC_URL` to the release-asset URL (verify the digest computes with `curl -sfL`). The locked organization (D2) and service (D3) claims are already applied identically in `config.env` + `deployment.yaml`.
 
 **Exit criteria:** identities are exactly `Verana DPP Example Organization` (org) and `DPP Ecosystem (demo)` (service) — no `Verana Example Ecosystem` service identity or `example` schema/EGF references remain; both `passport/` examples validate against their schemas; the chosen schema is accepted by `create_credential_schema` on devnet.
 

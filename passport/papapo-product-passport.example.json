@@ -37,12 +37,14 @@
       {
         "part": "upper",
         "description": "Leather or textile upper (fill with real BOM)",
-        "composition": "TBD"
+        "composition": "TBD",
+        "materialLotId": "leather-lot-example-001"
       },
       {
         "part": "outsole",
         "description": "Flexible rubber outsole",
-        "composition": "TBD"
+        "composition": "TBD",
+        "materialLotId": "outsole-lot-example-001"
       }
     ],
     "manufacturer": {
@@ -58,6 +60,12 @@
     "careUri": "https://papapo.shoes/care",
     "repairUri": "https://papapo.shoes/repair",
     "passportUri": "https://papapo.shoes/passport/example-barefoot-stone",
-    "claims": ["barefoot", "wide_toe_box", "zero_drop", "flexible_sole", "children"]
+    "claims": [
+      "barefoot",
+      "wide_toe_box",
+      "zero_drop",
+      "flexible_sole",
+      "children"
+    ]
   }
 }
