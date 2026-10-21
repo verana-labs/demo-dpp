@@ -1,0 +1,132 @@
+{
+  "$id": "https://papapo.shoes/verana/schemas/papapo-product-passport/v1-min",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PapapoProductPassportMin",
+  "description": "Minimal Product Passport schema for Verana / issuance testing. Color at product level; size on variants[]. Prefer papapo-product-passport.schema.json for production.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "credentialSubject": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048
+        },
+        "type": {
+          "type": "string",
+          "const": "PapapoProductPassport"
+        },
+        "passportLevel": {
+          "type": "string",
+          "enum": ["model", "variant", "instance"]
+        },
+        "productName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "color": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Product colorway. Not repeated on variants[]."
+        },
+        "countryOfOrigin": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        },
+        "passportUri": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 4096
+        },
+        "variants": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["size"],
+            "properties": {
+              "variantId": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "gtin": {
+                "type": "string",
+                "pattern": "^([0-9]{8}|[0-9]{12}|[0-9]{13}|[0-9]{14})$"
+              },
+              "sku": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "size": { "type": "string", "minLength": 1, "maxLength": 64 }
+            },
+            "anyOf": [
+              { "required": ["gtin"] },
+              { "required": ["sku"] },
+              { "required": ["variantId"] }
+            ]
+          }
+        },
+        "gtin": {
+          "type": "string",
+          "pattern": "^([0-9]{8}|[0-9]{12}|[0-9]{13}|[0-9]{14})$"
+        },
+        "sku": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "variantId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "size": { "type": "string", "minLength": 1, "maxLength": 64 }
+      },
+      "required": [
+        "id",
+        "type",
+        "passportLevel",
+        "productName",
+        "color",
+        "countryOfOrigin",
+        "passportUri"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": { "passportLevel": { "const": "model" } },
+            "required": ["passportLevel"]
+          },
+          "then": {
+            "required": ["variants"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "passportLevel": { "const": "variant" } },
+            "required": ["passportLevel"]
+          },
+          "then": {
+            "required": ["size"],
+            "anyOf": [
+              { "required": ["gtin"] },
+              { "required": ["sku"] },
+              { "required": ["variantId"] }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": { "passportLevel": { "const": "instance" } },
+            "required": ["passportLevel"]
+          },
+          "then": {
+            "required": ["size", "serialNumber"],
+            "properties": {
+              "serialNumber": { "type": "string", "minLength": 1, "maxLength": 128 }
+            },
+            "anyOf": [
+              { "required": ["gtin"] },
+              { "required": ["sku"] },
+              { "required": ["variantId"] }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "required": ["credentialSubject"]
+}

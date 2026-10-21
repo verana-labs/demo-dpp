@@ -1,0 +1,63 @@
+{
+  "credentialSubject": {
+    "id": "https://papapo.shoes/passport/example-barefoot-stone",
+    "type": "PapapoProductPassport",
+    "passportLevel": "model",
+    "productId": "prod_01EXAMPLE",
+    "productName": "Example Barefoot Shoe — Stone",
+    "model": "example-barefoot",
+    "color": "stone",
+    "sizeSystem": "EU",
+    "category": "barefoot_shoe",
+    "intendedUse": "Children's everyday barefoot footwear",
+    "variants": [
+      {
+        "variantId": "variant_01EX24",
+        "gtin": "7701234567890",
+        "sku": "EXAMPLE-STONE-EU24",
+        "size": "24",
+        "sizeSystem": "EU"
+      },
+      {
+        "variantId": "variant_01EX25",
+        "gtin": "7701234567906",
+        "sku": "EXAMPLE-STONE-EU25",
+        "size": "25",
+        "sizeSystem": "EU"
+      },
+      {
+        "variantId": "variant_01EX26",
+        "gtin": "7701234567913",
+        "sku": "EXAMPLE-STONE-EU26",
+        "size": "26",
+        "sizeSystem": "EU"
+      }
+    ],
+    "materials": [
+      {
+        "part": "upper",
+        "description": "Leather or textile upper (fill with real BOM)",
+        "composition": "TBD"
+      },
+      {
+        "part": "outsole",
+        "description": "Flexible rubber outsole",
+        "composition": "TBD"
+      }
+    ],
+    "manufacturer": {
+      "name": "Papapo",
+      "countryCode": "CO"
+    },
+    "brandOwner": {
+      "name": "Papapo",
+      "countryCode": "CO",
+      "website": "https://papapo.shoes"
+    },
+    "countryOfOrigin": "CO",
+    "careUri": "https://papapo.shoes/care",
+    "repairUri": "https://papapo.shoes/repair",
+    "passportUri": "https://papapo.shoes/passport/example-barefoot-stone",
+    "claims": ["barefoot", "wide_toe_box", "zero_drop", "flexible_sole", "children"]
+  }
+}
