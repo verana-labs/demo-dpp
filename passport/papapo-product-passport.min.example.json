@@ -1,0 +1,23 @@
+{
+  "credentialSubject": {
+    "id": "https://papapo.shoes/passport/test-model-stone",
+    "type": "PapapoProductPassport",
+    "passportLevel": "model",
+    "productName": "Test Barefoot Shoe",
+    "color": "stone",
+    "countryOfOrigin": "CO",
+    "passportUri": "https://papapo.shoes/passport/test-model-stone",
+    "variants": [
+      {
+        "variantId": "variant_test_24",
+        "gtin": "7701234567890",
+        "size": "24"
+      },
+      {
+        "variantId": "variant_test_25",
+        "sku": "TEST-EU25",
+        "size": "25"
+      }
+    ]
+  }
+}
