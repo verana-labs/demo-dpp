@@ -297,7 +297,7 @@ Two **new, distinct, funded** devnet accounts. Add as **repository secrets** in 
 
 | GitHub secret (this repo) | Content | Used by |
 |---|---|---|
-| `KUBECONFIG_VERANA_DEV` | Kubeconfig for the target cluster | Workflow → `~/.kube/config` |
+| `KUBECONFIG` | Kubeconfig for the target cluster (named `KUBECONFIG` in this repository — `verana-demos` uses `KUBECONFIG_VERANA_DEV` for the same content; do not mix the two names) | Workflow → `~/.kube/config` |
 | `K8S_NAMESPACE` | `demo-dpp` (D6 locked — dedicated namespace, §10) | Helm + K8s secret creation |
 | `DPP_VS_MNEMONIC` | Corporation operator mnemonic | Workflow only (`veranad` signing). **Never mounted into the agent pod.** |
 | `DPP_VS_AGENT_MNEMONIC` | Agent account mnemonic | Workflow (Participant provisioning) + agent pod via K8s secret |
@@ -317,7 +317,7 @@ Behaviour inherited from the demos, to keep:
 
 ### Phase 0 — Prerequisites & decisions
 - [ ] No open decisions block this phase: D1 (domain, §3.1), D2 (organization, §10), D3 (service identity, §10), D4 (schema + `$id`, §6.2), D5 (EGF, §6.3) and D6 (dedicated namespace `demo-dpp`, §10) are all locked. D7 (AnonCreds) is deferred to Phase 6 by design.
-- [ ] **Verify namespace RBAC with the `KUBECONFIG_VERANA_DEV` kubeconfig** (store it outside any repo, `chmod 600`; never commit or echo it). Point `KUBECONFIG` at it, confirm `kubectl config current-context`, then:
+- [ ] **Verify namespace RBAC with the kubeconfig stored in the `KUBECONFIG` repository secret** (store it outside any repo, `chmod 600`; never commit or echo it). Point `KUBECONFIG` at it, confirm `kubectl config current-context`, then:
 
   ```bash
   # 1) Cluster-scoped gate: may this identity create the dedicated namespace?
@@ -338,7 +338,7 @@ Behaviour inherited from the demos, to keep:
   | All `yes` | Proceed — the workflow self-creates `demo-dpp` on first `deploy`; set `K8S_NAMESPACE="demo-dpp"` (§7). |
   | `create namespaces` = `no` | A cluster admin pre-creates `demo-dpp` once **and** grants the step-2 permissions via a Role/RoleBinding in it; then re-run step 2 (must be all `yes`). |
   | Step 2 partly `no` after pre-creation | Admin grants the missing verbs/resources in `demo-dpp`; re-run step 2. |
-  | No local copy of the kubeconfig | GitHub secrets are write-only — get the file from whoever set `KUBECONFIG_VERANA_DEV`, or (last resort) print these `can-i` results from a throwaway Actions run in this repo. Never print the kubeconfig itself. |
+  | No local copy of the kubeconfig | GitHub secrets are write-only — get the file from whoever set the `KUBECONFIG` secret, or (last resort) print these `can-i` results from a throwaway Actions run in this repo. Never print the kubeconfig itself. |
 
 - [ ] Confirm cluster, storage class (`kubectl get storageclass csi-cinder-high-speed`), ingress class and cert-manager issuer (existence only; `Forbidden` just means no cluster-scope read — an admin can confirm), DNS + cert-manager for `*.dpp.demos.devnet.verana.network` (D1 naming: hosts under `dpp.demos.devnet.verana.network`).
 - [ ] Confirm `ecs-ecosystem` + `ecs-org-issuer` are live on devnet (check ECS Ecosystem DID endpoint).
