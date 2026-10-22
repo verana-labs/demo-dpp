@@ -399,8 +399,12 @@ jobs:
               SCHEMA_JSON=$(jq -c '.' "${PASSPORT_SCHEMA_FILE:-passport/papapo-product-passport.schema.json}")
             fi
 
+            # Issuer onboarding is GRANTOR (decision D8): new issuers are
+            # validated by the operator-run Issuer grantor service, not by
+            # the ecosystem root. The mode is immutable once the schema
+            # exists, so it must be set at this first creation.
             CUSTOM_SCHEMA_ID=$(create_credential_schema "$CORPORATION" "$ECOSYSTEM_ID" "$SCHEMA_JSON" \
-              "$ONBOARDING_MODE_ECOSYSTEM" "$ONBOARDING_MODE_OPEN" "$HOLDER_MODE_ISSUER_OP")
+              "$ONBOARDING_MODE_GRANTOR" "$ONBOARDING_MODE_OPEN" "$HOLDER_MODE_ISSUER_OP")
 
             create_root_participant "$CORPORATION" "$CUSTOM_SCHEMA_ID" "$AGENT_DID"
           fi

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **In progress — started 2026-10-21. Decisions D1–D6 locked; repository scaffolding, schema refactor with regression checks, and the governance framework source draft are implemented. First deployment (Phase 4) not yet run.** |
+| Status | **In progress — started 2026-10-21. Decisions D1–D6 and D8 locked; repository scaffolding, schema refactor with regression checks, and the governance framework source draft are implemented. First deployment (Phase 4) not yet run.** |
 | Decision | **Option C**: create a *new* organization for DPP in this repo (`demo-dpp`), reusing `verana-demos/organization-vs` as the code template. Do **not** reuse the live "Verana Example Organization" Corporation or its "example" Ecosystem. |
 | Reference implementation | [`verana-labs/verana-demos`](https://github.com/verana-labs/verana-demos), `organization-vs/` + `.github/workflows/1_deploy-organization-vs.yml` (cloned locally at commit `e2b9983`) |
 | Target (first) | Verana **devnet**, Verifiable Trust **v4**, `vs-agent v2.0.0-dev.97`, `veranad v0.10.6` |
@@ -19,10 +19,11 @@ Deploy a Verifiable Service (VS) for the Digital Product Passport (DPP) demo tha
 2. Is a **standalone** agent (`agentMode: standalone`) that owns its own **Corporation** and its own **Ecosystem** ("DPP Ecosystem") with a DPP credential schema, so DPP issuers/verifiers can later onboard as `delegated` children (same pattern as `issuer-*/verifier-*` in verana-demos).
 3. Obtains its own ECS **Organization** and **Service** credentials by onboarding against the shared `ecs-ecosystem` operated by [`verana-labs/verana-deploy`](https://github.com/verana-labs/verana-deploy) (it does *not* issue those to itself).
 4. Is discoverable in [Verana Search (devnet)](https://search.devnet.verana.network) / the [Trust Graph API](https://graph.devnet.verana.network/docs) under a DPP identity.
+5. Once the ecosystem root exists, the same Corporation also operates two of its own services under that Corporation (D8): a **verification service** holding a `VERIFIER` participant entry, which requests and checks passport presentations; and an **Issuer grantor service** holding an `ISSUER_GRANTOR` participant entry, which validates new issuer onboarding requests against the governance framework. Neither service issues product passports, and neither holds any brand's keys.
 
 ### Non-goals (this phase)
 
-- DPP issuer/verifier applications (web or chatbot) — deferred to Phase 6.
+- DPP issuer/verifier applications (web or chatbot) for brands — deferred to Phase 6. The operator-run verification and Issuer grantor services (item 5) are ecosystem infrastructure, not brand applications; they are built in Phase 6 immediately after the first deployment, before brand issuers onboard.
 - A playground/tutorial front-end — deferred.
 - Testnet deployment — devnet first; testnet promotion is Phase 6 and needs the cross-cluster ECS onboarding validation done from the `verana-deploy` cluster (see §9).
 
@@ -60,8 +61,11 @@ ecs-ecosystem                      ← shared, from verana-deploy (prerequisite,
     └── "DPP" Ecosystem            ← NEW, created by dpp-vs (create-dpp-ecosystem)
         │   DPP credential schema  (`passport/papapo-product-passport.schema.json`, CUSTOM_SCHEMA_BASE_ID=dpp)
         │   Root participant: dpp-vs (ECOSYSTEM role)
-        ├── (Phase 6) DPP issuer   ← delegated child (per brand; Papapo is the first brand)
-        └── (Phase 6) DPP verifier ← delegated child
+        ├── (Phase 6) issuer-grantor-vs ← delegated child of the SAME Corporation (D8)
+        │       ISSUER_GRANTOR participant on the DPP schema; validates issuer onboarding
+        ├── (Phase 6) verifier-vs        ← delegated child of the SAME Corporation (D8)
+        │       VERIFIER participant on the DPP schema; the public verification service
+        └── (Phase 6) DPP issuer   ← delegated child (per brand; Papapo is the first brand)
 ```
 
 **Multi-brand by design (decided 2026-10-21):** the DPP Ecosystem is *shared between multiple brands*. `dpp-vs` is therefore a **brand-neutral ecosystem operator**, not a brand. Papapo (a footwear brand) is the first participating brand — its passport schema (§6.2) is the ecosystem's first credential schema and Papapo will onboard later as a brand issuer (Phase 6), on the same footing as any future brand. This disqualifies making Papapo the ecosystem's legal entity (D2 Proposal 1). The operator identity is D2 Proposal 2, locked in §10: `ORG_NAME="Verana DPP Example Organization"` with the remaining `ORG_*` claims inherited unchanged from `organization-vs`.
@@ -80,6 +84,8 @@ Following the verana-demos branch convention, create branch **`vs/devnet-dpp`**:
 | Agent host (`ingress.host`) | `dpp-vs.dpp.demos.devnet.verana.network` |
 | Helm release name | `dpp` (as in demos, `deployment.yaml: name: __VS_NAME__`) |
 | DID document | `https://dpp-vs.dpp.demos.devnet.verana.network/.well-known/did.json` |
+| Issuer grantor host (Phase 6) | `issuer-grantor-vs.dpp.demos.devnet.verana.network` |
+| Verification service host (Phase 6) | `verifier-vs.dpp.demos.devnet.verana.network` |
 
 > ✅ **Decision D1 — locked 2026-10-21 (Proposal 1, demos-native):** use the verana-demos scheme above, network segment included. Rejected alternatives: literal network-less `*.dpp.demos.verana.network` (Proposal 2 — devnet/testnet cannot coexist, environment invisible in the URL, extra DNS zone) and network-first `*.<network>.dpp.demos.verana.network` (Proposal 3 — template + DNS changes for cosmetic gain only). No workflow/template deviation is needed for naming. Note the host is baked into the agent's `did:webvh`: changing it later means a new DID, new Participant entries, and re-issued credentials. A network-less vanity host may still be adopted later **for testnet only** as a deliberate launch event (fresh DID/ecosystem), not a migration.
 
@@ -110,9 +116,19 @@ demo-dpp/
 │   │   └── docker-compose.yml        ← copied (local dev)
 │   └── scripts/
 │       └── setup.sh                  ← adapted from organization-vs/scripts/setup.sh
+├── issuer-grantor-vs/                ← Phase 6 (D8): operator-run Issuer grantor service
+│   ├── config.env                    ← adapted from a verana-demos delegated child
+│   ├── deployment.yaml
+│   └── scripts/setup.sh
+├── verifier-vs/                      ← Phase 6 (D8): operator-run verification service
+│   ├── config.env                    ← adapted from verana-demos verifier children
+│   ├── deployment.yaml
+│   └── scripts/setup.sh
 └── .github/
     └── workflows/
-        └── 1_deploy-dpp-vs.yml       ← adapted from 1_deploy-organization-vs.yml
+        ├── 1_deploy-dpp-vs.yml       ← adapted from 1_deploy-organization-vs.yml
+        ├── 2_deploy-issuer-grantor-vs.yml  ← Phase 6 (D8)
+        └── 3_deploy-verifier-vs.yml        ← Phase 6 (D8)
 ```
 
 Sync strategy for `common/`: copy once, pinned to verana-demos commit `e2b9983`; record the source commit in `common/README` or a comment header. Re-sync deliberately (diff review) when upstream fixes land — do not auto-track `main`.
@@ -172,7 +188,7 @@ Steps, in order (same step model as demos; `step=all` runs the whole chain):
 | `bootstrap-corporation` | Step name unchanged. Uses `DPP_VS_MNEMONIC` + `DPP_VS_AGENT_MNEMONIC` (see §7). Keep the "re-resolve `deployment.yaml` after bootstrap on `all` runs" step — the agent needs `VERANA_CORPORATION_ID` at boot. |
 | `deploy` | K8s secret `dpp-vs-secrets`; Helm release `dpp`. |
 | `validate-ecs-onboarding` | Unchanged logic: operator creates Service `ISSUER` (self-create, OPEN schema) + Organization `HOLDER` (`StartParticipantOP`) entries naming the agent account as `vs_operator`; validate the agent's pending flow on `ecs-org-issuer` (port-forwarded `3101` on devnet, same cluster). |
-| `create-example-ecosystem` → **`create-dpp-ecosystem`** | Renamed. `create_ecosystem` → `create_credential_schema` (schema JSON read in place from `$PASSPORT_SCHEMA_FILE` under `passport/` — §5.4, no `dpp-vs/schema.json` copy; same mode constants as the reference: issuer `ONBOARDING_MODE_ECOSYSTEM`, verifier `ONBOARDING_MODE_OPEN`, holder `HOLDER_MODE_ISSUER_OP` from `common/common.sh`) → `create_root_participant`. Must stay idempotent (`find_ecosystem_for_did` check first). |
+| `create-example-ecosystem` → **`create-dpp-ecosystem`** | Renamed. `create_ecosystem` → `create_credential_schema` (schema JSON read in place from `$PASSPORT_SCHEMA_FILE` under `passport/` — §5.4, no `dpp-vs/schema.json` copy; holder mode `HOLDER_MODE_ISSUER_OP` from `common/common.sh`) → `create_root_participant`. Must stay idempotent (`find_ecosystem_for_did` check first). **Deviation from the reference (D8): issuer onboarding mode is `ONBOARDING_MODE_GRANTOR`, not `ONBOARDING_MODE_ECOSYSTEM`** — new issuers are validated by the operator-run Issuer grantor service (§3, Phase 6), not directly by the ecosystem root. Verifier onboarding stays `ONBOARDING_MODE_OPEN` so the operator-run verification service and later third-party verifiers can self-create their `VERIFIER` entries. Because the on-chain schema is immutable, this mode must be set at first creation; changing it later means creating a new schema. |
 
 ---
 
@@ -185,7 +201,7 @@ Steps, in order (same step model as demos; `step=all` runs the whole chain):
    - `ISSUER` on the ECS *Service* schema (self-created, OPEN).
    - `HOLDER` on the ECS *Organization* schema (`StartParticipantOP`, validated by `ecs-org-issuer`).
 3. **ECS credentials**: Organization credential (issued by `ecs-org-issuer` after validation of the agent's `ECS_CLAIMS_ORG_*`) and Service credential (self-issued by the agent against its Service `ISSUER` entry).
-4. **DPP Ecosystem** + **DPP credential schema** + **root participant** (ECOSYSTEM role, dpp-vs DID). The agent then publishes the schema's VTJSC in its DID document.
+4. **DPP Ecosystem** + **DPP credential schema** (issuer onboarding mode `GRANTOR` per D8, verifier mode `OPEN`, holder mode `ISSUER_OP`) + **root participant** (ECOSYSTEM role, dpp-vs DID). The agent then publishes the schema's VTJSC in its DID document. The `ISSUER_GRANTOR` and `VERIFIER` entries for the operator-run services are **not** created in this run — they are created when those services deploy (Phase 6), each naming its own agent account as `vs_operator`; until the grantor service exists, no new issuer can complete onboarding, which is the intended order.
 
 ### 6.2 DPP credential schema — first draft: `passport/`
 
@@ -310,13 +326,14 @@ Behaviour inherited from the demos, to keep:
 - The demos put *both* mnemonics in the K8s secret even though the pod only mounts the agent key. **Improvement to make in DPP:** store only `DPP_VS_AGENT_MNEMONIC` in the cluster secret; keep the operator mnemonic solely in GitHub.
 - Fund both accounts before the first run (faucet: `https://faucet.devnet.verana.network` or `common/faucet-fund.sh devnet`, max 50 VNA/account/hour). Generate with `veranad keys add dpp-vs-devnet-admin|dpp-vs-devnet-agent --keyring-backend test` and back the mnemonics up outside GitHub — GitHub never displays them again.
 - No other secrets needed for Phase 1–4. `DOCKER_HUB_LOGIN`/`DOCKER_HUB_PWD` only become necessary when building app images (Phase 6). `CORPORATION_ID`, ECS DID, RPC/indexer URLs are **not** secrets.
+- Phase 6 operator-run services (D8) each add exactly one secret — their own agent account mnemonic (`ISSUER_GRANTOR_VS_AGENT_MNEMONIC`, `VERIFIER_VS_AGENT_MNEMONIC`), each backed by its own funded account. There is **no** new operator secret: every child workflow reuses `DPP_VS_MNEMONIC`, because all children join the one Corporation and the same operator signs their provisioning.
 
 ---
 
 ## 8. Implementation phases
 
 ### Phase 0 — Prerequisites & decisions
-- [ ] No open decisions block this phase: D1 (domain, §3.1), D2 (organization, §10), D3 (service identity, §10), D4 (schema + `$id`, §6.2), D5 (EGF, §6.3) and D6 (dedicated namespace `demo-dpp`, §10) are all locked. D7 (AnonCreds) is deferred to Phase 6 by design.
+- [ ] No open decisions block this phase: D1 (domain, §3.1), D2 (organization, §10), D3 (service identity, §10), D4 (schema + `$id`, §6.2), D5 (EGF, §6.3) and D6 (dedicated namespace `demo-dpp`, §10) are all locked, as is D8 (operator-run verification and Issuer grantor services, §10 — its schema-mode consequence lands in Phase 4, the services themselves in Phase 6). D7 (AnonCreds) is deferred to Phase 6 by design.
 - [ ] **Verify namespace RBAC with the kubeconfig stored in the `KUBECONFIG` repository secret** (store it outside any repo, `chmod 600`; never commit or echo it). Point `KUBECONFIG` at it, confirm `kubectl config current-context`, then:
 
   ```bash
@@ -377,7 +394,9 @@ Runbook (from branch `vs/devnet-dpp`, Actions → `1_ Deploy DPP VS`):
 - [ ] (Optional) Split workflows so routine `deploy`-only runs don't require the operator mnemonic.
 
 ### Phase 6 — Extensions (deferred, separate plans)
-- [ ] **First issuance use case — the brand's self-issued ProductPassport (§6.4, step 1).** Delegated DPP issuers (web and/or chatbot) — **one per brand**, Papapo first — and verifier(s), cloned from verana-demos workflows 2–5, onboarding against the **DPP schema** (issuers: `StartParticipantOP(ISSUER)`; verifiers: self-create OPEN) + AnonCreds cred-def if required. The brand's own DID signs its passports (one credential per product/colourway, product = URI subject, brand agent = issuer + holder); the ecosystem operator issues no product credentials. Brands are participants of the shared ecosystem; none of them is the ecosystem operator (see §3).
+- [ ] **Operator-run Issuer grantor service (D8) — build first in this phase, before any brand issuer.** A delegated child `issuer-grantor-vs` of the same Corporation (own agent account and mnemonic secret, e.g. `ISSUER_GRANTOR_VS_AGENT_MNEMONIC`; the Corporation operator secret `DPP_VS_MNEMONIC` is reused for provisioning, as with every child). The operator creates its `ISSUER_GRANTOR` participant entry on the DPP schema with the ecosystem root as validator; the `dpp-vs` operator validates that one entry (root validates grantors, grantors validate issuers). Its workflow mirrors the `ecs-org-issuer` pattern: brand issuer applicants start `ISSUER` onboarding naming the grantor entry as validator, the grantor agent receives the onboarding request, and a human operator decision (per the governance framework's per-schema accreditation rules, §6.3/§6.4) validates or rejects it through the grantor's Admin API (port-forwarded, never an ingress). The grantor service issues no credentials and holds no brand keys.
+- [ ] **Operator-run verification service (D8).** A delegated child `verifier-vs` of the same Corporation (own agent account and mnemonic secret, e.g. `VERIFIER_VS_AGENT_MNEMONIC`), adapted from the verana-demos verifier children. It self-creates its `VERIFIER` participant entry on the DPP schema (verifier onboarding mode `OPEN`), obtains its Service credential by onboarding against `dpp-vs` like any delegated child, and exposes the public verification flow: request a passport presentation, then check signature, issuer participation on the schema, validity and revocation, and the material-lot evidence join (§6.4). It is one verifier among potentially many — third-party verifiers onboard the same way.
+- [ ] **First issuance use case — the brand's self-issued ProductPassport (§6.4, step 1).** Delegated DPP issuers (web and/or chatbot) — **one per brand**, Papapo first — cloned from verana-demos workflows 2–5, onboarding against the **DPP schema** (issuers: `StartParticipantOP(ISSUER)` naming the Issuer grantor entry as validator, validated by the operator-run grantor service above; additional verifiers: self-create OPEN) + AnonCreds cred-def if required. The brand's own DID signs its passports (one credential per product/colourway, product = URI subject, brand agent = issuer + holder); the ecosystem operator issues no product credentials. Brands are participants of the shared ecosystem; none of them is the ecosystem operator (see §3).
 - [ ] **Third-party credential schemas (§6.4, step 2):** design the MaterialCompliance schema (supplier-issued, **one credential per material lot** covering every product using that lot — REACH leather case), then TestAttestation (accredited labs) and ManufacturingAttestation (factories), each as its own schema under the DPP `ECOSYSTEM_ID` with its own root participant. Onboard each third party as an *independent organization* (its own agent/DID; the operator only validates its ISSUER participation per the EGF's per-schema accreditation categories) — do not model real third parties as operator-hosted children. Verifier/presentation flows join passport → lot credential → test evidence via `materials[].materialLotId`.
 - [ ] Additional product schemas: for each new product, add its credential schema under the existing DPP `ECOSYSTEM_ID` (`create_credential_schema` + `create_root_participant` per schema) — the ecosystem, `dpp-vs` agent, and Corporation are reused unchanged. Schema-specific issuers/verifiers onboard against that schema's root participant. The demos code assumes one custom schema per ecosystem (single `CUSTOM_SCHEMA_ID`, single-schema discovery), so this step includes generalising schema handling to a per-schema config (name → schema file → base ID).
 - [ ] Playground-style front-end tying issuer/verifier together.
@@ -420,6 +439,7 @@ Plus UI checks:
 | D5 | EGF document | ✅ **Resolved 2026-10-21 — Proposal 2 + same-repo Release hosting:** write a minimal, brand/product-agnostic DPP EGF; source in `demo-dpp/egf/`, PDF published as a GitHub Release asset in `demo-dpp` (tag `egf-v1`), `EGF_DOC_URL` pointing at the release asset. Never overwrite a release asset (digest is on-chain); corrections = new release + on-chain update. ❌ Proposal 1 (reuse Example EGF) rejected as permanent value (temporary bootstrap placeholder only); ❌ Proposal 3 (full Council Template-EGF) rejected for now (DRAFT 0.1, overkill) — minimal EGF may follow its headings as an upgrade path | Phase 2 |
 | D6 | K8s namespace | ✅ **Resolved 2026-10-21 — Proposal 2 (dedicated namespace):** `K8S_NAMESPACE="demo-dpp"` in this repo's secrets, same cluster/kubeconfig as verana-demos. Gated by the Phase 0 RBAC verification (workflow self-creates the namespace if `kubectl auth can-i create namespaces` is `yes`; otherwise an admin pre-creates `demo-dpp` once with the required RoleBinding). ❌ Proposal 1 (reuse verana-demos namespace) rejected — shared blast radius incl. the wallet PVC. ❌ Proposal 3 (namespace per environment) rejected — the workflows use one static `K8S_NAMESPACE` secret; a later namespace move would strand the wallet PVC (new DID, re-onboarding). | Phase 0 |
 | D7 | AnonCreds required for DPP credentials? Nested `passport/` claims (`materials[]`, `variants[]`, `manufacturer{}`) do not map natively to AnonCreds' flat attributes | Default: W3C/VTJSC format for the nested draft; design a flattened AnonCreds companion only if AnonCreds issuance becomes a requirement | Phase 6 |
+| D8 | Who runs the ecosystem's verification and issuer-granting functions? | ✅ **Resolved 2026-10-22:** the DPP Corporation itself runs both, as delegated children of the same Corporation (like the verana-demos children): an **Issuer grantor service** (`issuer-grantor-vs`, `ISSUER_GRANTOR` participant per schema) that validates issuer onboarding against the governance framework, and a **verification service** (`verifier-vs`, `VERIFIER` participant) that checks passport presentations. Consequences: the passport schema is created with issuer onboarding mode `GRANTOR` (immutable — set at first creation, §5.6/§6.1); the grantor service is built before the first brand issuer onboards (Phase 6 order); each service has its own agent account/secret while reusing the one Corporation operator secret. ❌ Rejected: root (`dpp-vs`) validating issuers directly (`ECOSYSTEM` mode — collapses the grantor function into the root and cannot be changed later without a new schema), and leaving verification entirely to third parties (the demonstration needs an operator-run reference verifier). | Phase 4 (schema mode), Phase 6 (services) |
 
 ---
 

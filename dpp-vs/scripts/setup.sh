@@ -389,8 +389,11 @@ else
   SCHEMA_JSON=$(jq -c '.' "$CUSTOM_SCHEMA_FILE")
 fi
 
+# Issuer onboarding is GRANTOR (decision D8 in docs/implementation-plan.md):
+# new issuers are validated by the operator-run Issuer grantor service, not
+# by the ecosystem root. The mode is immutable once the schema exists.
 CUSTOM_SCHEMA_ID=$(create_credential_schema "$CORPORATION" "$ECOSYSTEM_ID" "$SCHEMA_JSON" \
-  "$ONBOARDING_MODE_ECOSYSTEM" "$ONBOARDING_MODE_OPEN" "$HOLDER_MODE_ISSUER_OP")
+  "$ONBOARDING_MODE_GRANTOR" "$ONBOARDING_MODE_OPEN" "$HOLDER_MODE_ISSUER_OP")
 
 ROOT_PARTICIPANT_ID=$(create_root_participant "$CORPORATION" "$CUSTOM_SCHEMA_ID" "$AGENT_DID")
 

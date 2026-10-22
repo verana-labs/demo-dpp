@@ -34,10 +34,22 @@ brand, nor a product category, nor a technology vendor.
 ## 3. Roles
 
 - **Ecosystem operator** — operates the ecosystem agent (`dpp-vs`), creates
-  the ecosystem and its credential schemas, holds the ecosystem root
-  participant position, and validates or rejects participant onboarding
-  under this framework. The operator does **not** issue product credentials
-  and does not hold any participant's keys.
+  the ecosystem and its credential schemas, and holds the ecosystem root
+  participant position. The operator also runs two services of its own under
+  the same organisation: the Issuer grantor service and the verification
+  service below. The operator does **not** issue product credentials and
+  does not hold any participant's keys.
+- **Issuer grantor service** — a service run by the ecosystem operator
+  holding the issuer-grantor participant position for a credential schema.
+  It receives onboarding requests from prospective issuers, checks them
+  against the admission rules of section 4 (including the per-schema
+  accreditation categories), and validates or rejects them. Granting is an
+  accreditation decision only: the service issues no credentials and holds
+  no issuer's keys.
+- **Verification service** — a service run by the ecosystem operator holding
+  a verifier participant position. It requests presentations and checks
+  them as described in section 7. It is one verifier among potentially many;
+  any other party may onboard as a verifier where the schema permits it.
 - **Brand issuer** — a brand (or a service provider explicitly accredited to
   issue using the brand's own decentralised identifier) that issues product
   passport credentials for its own products. A brand is both issuer and
@@ -59,8 +71,10 @@ brand, nor a product category, nor a technology vendor.
 
 1. An applicant must control the decentralised identifier it registers and
    hold a valid Service credential for that identifier.
-2. The operator validates onboarding requests for issuers. Verifier
-   participation may be open where a schema permits it.
+2. Onboarding requests for issuers are validated by the operator's Issuer
+   grantor service for that schema (or, where no grantor service is
+   designated, by the operator as root). Verifier participation may be open
+   where a schema permits it.
 3. Brand admission (first brand: Papapo) requires identifying the legal or
    trading identity behind the brand and the product categories it will
    issue for. Admission of one brand confers no rights over any other brand.
