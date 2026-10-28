@@ -27,7 +27,7 @@ Scaffolding for the minimum set is in progress on the feature branch:
 - `issuer-grantor-vs/` — operator-run Issuer grantor (agent only; no web UI yet)
 - `verifier-vs/` — operator-run verification service (agent only; no web UI yet)
 - `passport/` — Papapo product passport schema (single source of truth)
-- `egf/` — governance framework source; PDF must be published as release `egf-v1` before first deploy
+- `egf/` — governance framework source; PDF must be published as release `egf-v1` before first deploy (step-by-step: [docs/egf-hosting.md](docs/egf-hosting.md))
 
 ## Secrets required
 

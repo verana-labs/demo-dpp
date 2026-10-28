@@ -259,9 +259,11 @@ The first draft already exists in this repo under `passport/`, authored for **Pa
 
 ### 6.3 Governance document (EGF) — D5 locked: minimal DPP EGF, Release-asset hosting
 
-- [ ] Write a **minimal DPP EGF** (D5 Proposal 2): a short, brand- and product-agnostic governance document for the DPP Ecosystem — purpose/scope (demo status explicit), operator (D2 identity), participant roles and onboarding, brand admission (Papapo first), schema governance (proposal/versioning/deprecation for the multi-schema roadmap), **per-schema ISSUER accreditation categories** (e.g. suppliers may issue material declarations, ISO 17025-accredited labs may issue test attestations — see §6.4), data-quality and no-personal-data rules, revocation/suspension, and the EGF change process.
-- [ ] **Hosting (locked): GitHub Release asset in this repo (`demo-dpp`) only** — do not require changes to another repo (e.g. a governance-docs or website repo), and do not use GitHub Pages or raw/tag URLs. Keep the EGF source (Markdown/LaTeX) in `egf/` in this repo so the PDF is reproducible; attach the built PDF to a release tagged e.g. `egf-v1` and set `EGF_DOC_URL="https://github.com/verana-labs/demo-dpp/releases/download/egf-v1/dpp-ecosystem-egf-v1.pdf"`. (This replaces the demos' `https://verana-labs.github.io/governance-docs/EGF/example.pdf`.)
-- [ ] **Immutability discipline:** never replace an asset on an existing release — its SHA-384 SRI digest is recorded on-chain at Corporation/ecosystem creation. Corrections ship as a new release (`egf-v2`, new URL) plus an on-chain update. Rejected: Proposal 1 (reuse the Example EGF — governs the wrong ecosystem) as the permanent value (acceptable only as a temporary bootstrap placeholder), and Proposal 3 (full Council Template-EGF — pre-incorporation DRAFT 0.1, weeks of work; the minimal EGF may adopt its headings so it can grow into it).
+**Detailed how-to (URL, digest, release checklist, corrections):** [`docs/egf-hosting.md`](egf-hosting.md).
+
+- [x] Write a **minimal DPP EGF** (D5 Proposal 2): source in `egf/dpp-ecosystem-egf-v1.md` (roles include Issuer grantor and verification service).
+- [ ] **Hosting (locked): GitHub Release asset in this repo (`demo-dpp`) only** — attach `dpp-ecosystem-egf-v1.pdf` to tag `egf-v1`; `EGF_DOC_URL` already points at that download URL. Prefer immutable releases; pin `EGF_DOC_DIGEST` after publish (see egf-hosting.md). Do not use `governance-docs` or Pages for DPP.
+- [ ] **Immutability discipline:** never replace an asset on an existing release — its SHA-384 SRI digest is recorded on-chain at Corporation/ecosystem creation. Corrections ship as a new release (`egf-v2`, new URL) plus an on-chain governance-framework version increase. Rejected: Proposal 1 (reuse the Example EGF) as permanent value; Proposal 3 (full Council Template-EGF) for now.
 
 ### 6.4 Credential issuance roadmap — start with the brand's self-issued passport
 
@@ -373,7 +375,7 @@ Behaviour inherited from the demos, to keep:
 
 ### Phase 2 — DPP content
 - [x] Adopt `passport/` as the DPP schema draft (§6.2): `$PASSPORT_SCHEMA_FILE` points at the full schema (no copy anywhere). Still to do during/after first deployment: replace example placeholder data with real product data, and pass the chain-acceptance gate (fallback: point the same variable at the min schema).
-- [ ] Produce the governance document per D5 (§6.3): source draft written in `egf/dpp-ecosystem-egf-v1.md`; **still to do:** build the PDF file, publish it as the `egf-v1` GitHub Release asset in this repo, and set `EGF_DOC_URL` to the release-asset URL (verify the digest computes with `curl -sfL`). The locked organization (D2) and service (D3) claims are already applied identically in `config.env` + `deployment.yaml`.
+- [ ] Produce the governance document per D5 (§6.3): source draft written in `egf/dpp-ecosystem-egf-v1.md`; **still to do:** follow the checklist in [`docs/egf-hosting.md`](egf-hosting.md) (build PDF → release `egf-v1` → verify download → pin digest). The locked organization (D2) and service (D3) claims are already applied identically in `config.env` + `deployment.yaml`.
 
 **Exit criteria:** identities are exactly `Verana DPP Example Organization` (org) and `DPP Ecosystem (demo)` (service) — no `Verana Example Ecosystem` service identity or `example` schema/EGF references remain; both `passport/` examples validate against their schemas; the chosen schema is accepted by `create_credential_schema` on devnet.
 
