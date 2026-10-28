@@ -100,7 +100,7 @@ demo-dpp/
 ├── README.md
 ├── docs/
 │   └── implementation-plan.md        ← this document
-├── egf/                              ← EGF source (Markdown/LaTeX); PDF published as a GitHub Release asset (D5, §6.3)
+├── egf/                              ← EGF source + build-pdf.sh; PDF published as a GitHub Release asset (D5, §6.3)
 ├── passport/                         ← DPP schema (SINGLE source of truth, see §5.4)
 │   ├── papapo-product-passport.schema.json        ← canonical schema — deployment reads it in place
 │   ├── papapo-product-passport.example.json       ← example credentialSubject (model level)

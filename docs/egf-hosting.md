@@ -158,23 +158,20 @@ Use this list before the first `dpp-vs` deploy (`step=all` or
 
 ### B. Build the PDF
 
-- [ ] Produce `dpp-ecosystem-egf-v1.pdf` from the Markdown (Pandoc, Typst,
-      LibreOffice, Word export, etc.).
+- [ ] Produce `dpp-ecosystem-egf-v1.pdf` from the Markdown with the repo script:
 - [ ] File name must be exactly `dpp-ecosystem-egf-v1.pdf`.
-- [ ] Keep a local copy; do not commit secrets. Committing the PDF under `egf/`
-      is optional (reproducibility); the **release asset** is what the URL
-      serves.
-
-Example with Pandoc (if installed):
+- [ ] Keep a local copy; do not commit secrets. Generated PDFs under `egf/`
+      are gitignored; the **release asset** is what the URL serves.
 
 ```bash
-pandoc egf/dpp-ecosystem-egf-v1.md \
-  -o /tmp/dpp-ecosystem-egf-v1.pdf \
-  --pdf-engine=xelatex   # or weasyprint / wkhtmltopdf depending on your setup
+# Prerequisites: brew install pandoc tectonic
+# (or Docker — see egf/build-pdf.sh header)
+./egf/build-pdf.sh
+# → egf/dpp-ecosystem-egf-v1.pdf and prints sha384-… digest
 ```
 
-Any tool that yields a stable PDF is fine; reproducibility matters more than
-the toolchain.
+Re-run the same command after any later edit to
+`egf/dpp-ecosystem-egf-v1.md` (or `./egf/build-pdf.sh v2` for a new version).
 
 ### C. Create the GitHub Release
 
@@ -288,7 +285,10 @@ an **increase of the active version**, not an edit of the published bytes.
   egf/dpp-ecosystem-egf-v1.md     ← edit in git / PR
            │
            ▼
-  dpp-ecosystem-egf-v1.pdf        ← build offline
+  ./egf/build-pdf.sh              ← reproducible local build
+           │
+           ▼
+  egf/dpp-ecosystem-egf-v1.pdf    ← gitignored; keep for the release
            │
            ▼
   GitHub Release tag egf-v1       ← attach PDF (prefer immutable)
@@ -309,6 +309,7 @@ an **increase of the active version**, not an edit of the published bytes.
 | Item | Value |
 |---|---|
 | Source | `egf/dpp-ecosystem-egf-v1.md` |
+| Build script | `egf/build-pdf.sh` |
 | Release tag | `egf-v1` |
 | Asset name | `dpp-ecosystem-egf-v1.pdf` |
 | URL | `https://github.com/verana-labs/demo-dpp/releases/download/egf-v1/dpp-ecosystem-egf-v1.pdf` |
@@ -323,6 +324,7 @@ an **increase of the active version**, not an edit of the published bytes.
 
 - `docs/implementation-plan.md` — decision D5, Phase 2 exit criteria
 - `egf/dpp-ecosystem-egf-v1.md` — EGF source text
+- `egf/build-pdf.sh` — Markdown → PDF (+ prints digest)
 - `dpp-vs/config.env` — URL (and optional digest)
 - `common/common.sh` — `compute_sri_digest`, `create_corporation`, `create_ecosystem`
 - [`verana-labs/governance-docs`](https://github.com/verana-labs/governance-docs) — demos’ Pages-based approach (not used here)
