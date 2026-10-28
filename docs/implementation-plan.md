@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **In progress — started 2026-10-21. Decisions D1–D6 and D8 locked; repository scaffolding, schema refactor with regression checks, and the governance framework source draft are implemented. First deployment (Phase 4) not yet run.** |
+| Status | **In progress — started 2026-10-21. Decisions D1–D6 and D8 locked. Minimum coherent set scaffolded: `dpp-vs` + `issuer-grantor-vs` + `verifier-vs` (agent-only children). Governance PDF release and first deployment not yet run.** |
 | Decision | **Option C**: create a *new* organization for DPP in this repo (`demo-dpp`), reusing `verana-demos/organization-vs` as the code template. Do **not** reuse the live "Verana Example Organization" Corporation or its "example" Ecosystem. |
 | Reference implementation | [`verana-labs/verana-demos`](https://github.com/verana-labs/verana-demos), `organization-vs/` + `.github/workflows/1_deploy-organization-vs.yml` (cloned locally at commit `e2b9983`) |
 | Target (first) | Verana **devnet**, Verifiable Trust **v4**, `vs-agent v2.0.0-dev.97`, `veranad v0.10.6` |
@@ -116,19 +116,21 @@ demo-dpp/
 │   │   └── docker-compose.yml        ← copied (local dev)
 │   └── scripts/
 │       └── setup.sh                  ← adapted from organization-vs/scripts/setup.sh
-├── issuer-grantor-vs/                ← Phase 6 (D8): operator-run Issuer grantor service
-│   ├── config.env                    ← adapted from a verana-demos delegated child
+├── issuer-grantor-vs/                ← D8: operator-run Issuer grantor (agent only for first cut)
+│   ├── config.env
 │   ├── deployment.yaml
+│   ├── docker/docker-compose.yml
 │   └── scripts/setup.sh
-├── verifier-vs/                      ← Phase 6 (D8): operator-run verification service
-│   ├── config.env                    ← adapted from verana-demos verifier children
+├── verifier-vs/                      ← D8: operator-run verification service (agent only for first cut)
+│   ├── config.env
 │   ├── deployment.yaml
+│   ├── docker/docker-compose.yml
 │   └── scripts/setup.sh
 └── .github/
     └── workflows/
-        ├── 1_deploy-dpp-vs.yml       ← adapted from 1_deploy-organization-vs.yml
-        ├── 2_deploy-issuer-grantor-vs.yml  ← Phase 6 (D8)
-        └── 3_deploy-verifier-vs.yml        ← Phase 6 (D8)
+        ├── 1_deploy-dpp-vs.yml
+        ├── 2_deploy-issuer-grantor-vs.yml
+        └── 3_deploy-verifier-vs.yml
 ```
 
 Sync strategy for `common/`: copy once, pinned to verana-demos commit `e2b9983`; record the source commit in `common/README` or a comment header. Re-sync deliberately (diff review) when upstream fixes land — do not auto-track `main`.
@@ -326,7 +328,7 @@ Behaviour inherited from the demos, to keep:
 - The demos put *both* mnemonics in the K8s secret even though the pod only mounts the agent key. **Improvement to make in DPP:** store only `DPP_VS_AGENT_MNEMONIC` in the cluster secret; keep the operator mnemonic solely in GitHub.
 - Fund both accounts before the first run (faucet: `https://faucet.devnet.verana.network` or `common/faucet-fund.sh devnet`, max 50 VNA/account/hour). Generate with `veranad keys add dpp-vs-devnet-admin|dpp-vs-devnet-agent --keyring-backend test` and back the mnemonics up outside GitHub — GitHub never displays them again.
 - No other secrets needed for Phase 1–4. `DOCKER_HUB_LOGIN`/`DOCKER_HUB_PWD` only become necessary when building app images (Phase 6). `CORPORATION_ID`, ECS DID, RPC/indexer URLs are **not** secrets.
-- Phase 6 operator-run services (D8) each add exactly one secret — their own agent account mnemonic (`ISSUER_GRANTOR_VS_AGENT_MNEMONIC`, `VERIFIER_VS_AGENT_MNEMONIC`), each backed by its own funded account. There is **no** new operator secret: every child workflow reuses `DPP_VS_MNEMONIC`, because all children join the one Corporation and the same operator signs their provisioning.
+- Operator-run children (D8) each add exactly one secret — their own agent account mnemonic (`ISSUER_GRANTOR_VS_AGENT_MNEMONIC`, `VERIFIER_VS_AGENT_MNEMONIC`), each backed by its own funded account. There is **no** new operator secret: every child workflow reuses `DPP_VS_MNEMONIC`, because all children join the one Corporation and the same operator signs their provisioning. Add both secrets before running workflows 2 and 3.
 
 ---
 
@@ -393,9 +395,12 @@ Runbook (from branch `vs/devnet-dpp`, Actions → `1_ Deploy DPP VS`):
 - [ ] Decide wallet/storage backup expectations for the agent PVC; document that losing the wallet changes the `did:webvh` SCID and invalidates Participant entries.
 - [ ] (Optional) Split workflows so routine `deploy`-only runs don't require the operator mnemonic.
 
-### Phase 6 — Extensions (deferred, separate plans)
-- [ ] **Operator-run Issuer grantor service (D8) — build first in this phase, before any brand issuer.** A delegated child `issuer-grantor-vs` of the same Corporation (own agent account and mnemonic secret, e.g. `ISSUER_GRANTOR_VS_AGENT_MNEMONIC`; the Corporation operator secret `DPP_VS_MNEMONIC` is reused for provisioning, as with every child). The operator creates its `ISSUER_GRANTOR` participant entry on the DPP schema with the ecosystem root as validator; the `dpp-vs` operator validates that one entry (root validates grantors, grantors validate issuers). Its workflow mirrors the `ecs-org-issuer` pattern: brand issuer applicants start `ISSUER` onboarding naming the grantor entry as validator, the grantor agent receives the onboarding request, and a human operator decision (per the governance framework's per-schema accreditation rules, §6.3/§6.4) validates or rejects it through the grantor's Admin API (port-forwarded, never an ingress). The grantor service issues no credentials and holds no brand keys.
-- [ ] **Operator-run verification service (D8).** A delegated child `verifier-vs` of the same Corporation (own agent account and mnemonic secret, e.g. `VERIFIER_VS_AGENT_MNEMONIC`), adapted from the verana-demos verifier children. It self-creates its `VERIFIER` participant entry on the DPP schema (verifier onboarding mode `OPEN`), obtains its Service credential by onboarding against `dpp-vs` like any delegated child, and exposes the public verification flow: request a passport presentation, then check signature, issuer participation on the schema, validity and revocation, and the material-lot evidence join (§6.4). It is one verifier among potentially many — third-party verifiers onboard the same way.
+### Phase 6a — Minimum coherent set: operator children (D8) — scaffold done, deploy after Phase 4
+- [x] **Issuer grantor service scaffold** (`issuer-grantor-vs/`, workflow `2_deploy-issuer-grantor-vs.yml`). Delegated child; secret `ISSUER_GRANTOR_VS_AGENT_MNEMONIC`; onboard steps: Service HOLDER + validate on `dpp-vs`, then `StartParticipantOP(ISSUER_GRANTOR)` vs ecosystem root + `set_participant_validated` by Corporation operator. Agent-only (no web UI) for the first cut. Brand issuers later name this grantor as validator.
+- [x] **Verification service scaffold** (`verifier-vs/`, workflow `3_deploy-verifier-vs.yml`). Delegated child; secret `VERIFIER_VS_AGENT_MNEMONIC`; onboard: Service HOLDER + validate on `dpp-vs`, then `self_create_participant(VERIFIER)` (OPEN). Agent-only for the first cut.
+- [ ] **Deploy after Phase 4:** run workflow 2 then 3 on `vs/devnet-dpp` (requires the two new agent secrets and DNS for both hosts).
+
+### Phase 6b — Extensions (deferred, after the minimum set is live)
 - [ ] **First issuance use case — the brand's self-issued ProductPassport (§6.4, step 1).** Delegated DPP issuers (web and/or chatbot) — **one per brand**, Papapo first — cloned from verana-demos workflows 2–5, onboarding against the **DPP schema** (issuers: `StartParticipantOP(ISSUER)` naming the Issuer grantor entry as validator, validated by the operator-run grantor service above; additional verifiers: self-create OPEN) + AnonCreds cred-def if required. The brand's own DID signs its passports (one credential per product/colourway, product = URI subject, brand agent = issuer + holder); the ecosystem operator issues no product credentials. Brands are participants of the shared ecosystem; none of them is the ecosystem operator (see §3).
 - [ ] **Third-party credential schemas (§6.4, step 2):** design the MaterialCompliance schema (supplier-issued, **one credential per material lot** covering every product using that lot — REACH leather case), then TestAttestation (accredited labs) and ManufacturingAttestation (factories), each as its own schema under the DPP `ECOSYSTEM_ID` with its own root participant. Onboard each third party as an *independent organization* (its own agent/DID; the operator only validates its ISSUER participation per the EGF's per-schema accreditation categories) — do not model real third parties as operator-hosted children. Verifier/presentation flows join passport → lot credential → test evidence via `materials[].materialLotId`.
 - [ ] Additional product schemas: for each new product, add its credential schema under the existing DPP `ECOSYSTEM_ID` (`create_credential_schema` + `create_root_participant` per schema) — the ecosystem, `dpp-vs` agent, and Corporation are reused unchanged. Schema-specific issuers/verifiers onboard against that schema's root participant. The demos code assumes one custom schema per ecosystem (single `CUSTOM_SCHEMA_ID`, single-schema discovery), so this step includes generalising schema handling to a per-schema config (name → schema file → base ID).

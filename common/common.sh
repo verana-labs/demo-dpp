@@ -97,6 +97,9 @@ set_network_vars() {
 # operator account, which runs these scripts, holds the OperatorAuthorization
 # instead; one account can never hold both.
 readonly VSOA_ISSUER="/verana.pp.v1.MsgCreateOrUpdateParticipantSession,/verana.pp.v1.MsgSetParticipantOPToValidated"
+# An Issuer grantor validates ISSUER onboarding (SetParticipantOPToValidated) and
+# may open participant sessions — same msg set as an ISSUER vs_operator.
+readonly VSOA_ISSUER_GRANTOR="/verana.pp.v1.MsgCreateOrUpdateParticipantSession,/verana.pp.v1.MsgSetParticipantOPToValidated"
 readonly VSOA_VERIFIER="/verana.pp.v1.MsgCreateOrUpdateParticipantSession"
 readonly VSOA_HOLDER="/verana.pp.v1.MsgTriggerResolver"
 

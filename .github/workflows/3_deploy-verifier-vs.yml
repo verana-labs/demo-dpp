@@ -1,0 +1,291 @@
+name: 3_ Deploy Verifier VS
+
+on:
+  workflow_dispatch:
+    inputs:
+      step:
+        description: "Which step to run"
+        required: true
+        type: choice
+        options:
+          - deploy
+          - onboard-verifier
+          - all
+        default: all
+
+jobs:
+  deploy-verifier-vs:
+    name: Deploy Verifier VS Agent
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Validate branch and extract network
+        run: |
+          BRANCH="${GITHUB_REF_NAME}"
+          if [ "$BRANCH" = "vs/testnet-main" ]; then
+            echo "::error::Branch vs/testnet-main is reserved. Deploy from 'main' branch instead."
+            exit 1
+          elif [ "$BRANCH" = "main" ]; then
+            NETWORK="testnet"
+            VS_NAME="main"
+          elif [[ "$BRANCH" =~ ^vs/(testnet|devnet)- ]]; then
+            SUFFIX="${BRANCH#vs/}"
+            NETWORK="${SUFFIX%%-*}"
+            VS_NAME="${SUFFIX#*-}"
+          else
+            echo "::error::Branch must be 'main' or match vs/testnet-<name> or vs/devnet-<name> (current: $BRANCH)"
+            exit 1
+          fi
+          echo "NETWORK=${NETWORK}" >> "$GITHUB_ENV"
+          echo "VS_NAME=${VS_NAME}" >> "$GITHUB_ENV"
+          echo "Branch: $BRANCH — Network: $NETWORK — Service: $VS_NAME"
+
+      - name: Load configuration
+        run: |
+          set -a
+          source verifier-vs/config.env
+          set +a
+          while IFS= read -r line; do
+            key="${line%%=*}"
+            echo "${key}=${!key}" >> "$GITHUB_ENV"
+          done < <(grep -E '^[A-Z_]+=' verifier-vs/config.env)
+
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          cat > ~/.kube/config <<'KUBEEOF'
+          ${{ secrets.KUBECONFIG }}
+          KUBEEOF
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5.1.0
+        with:
+          version: 'v1.29.9'
+
+      - name: Install veranad
+        run: |
+          VERANAD_VERSION="v0.10.6"
+          curl -sfL "https://github.com/verana-labs/verana-node/releases/download/${VERANAD_VERSION}/veranad-linux-amd64" \
+            -o /usr/local/bin/veranad
+          chmod +x /usr/local/bin/veranad
+          veranad version
+
+      - name: Import accounts from mnemonics
+        env:
+          OPERATOR_MNEMONIC: ${{ secrets.DPP_VS_MNEMONIC }}
+          AGENT_MNEMONIC: ${{ secrets.VERIFIER_VS_AGENT_MNEMONIC }}
+        run: |
+          for name in OPERATOR_MNEMONIC AGENT_MNEMONIC; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Repository secret for ${name} is empty. Set DPP_VS_MNEMONIC and VERIFIER_VS_AGENT_MNEMONIC as repository secrets."
+              exit 1
+            fi
+          done
+          echo "$OPERATOR_MNEMONIC" | veranad keys add "${{ env.USER_ACC }}" --recover --keyring-backend test
+          USER_ACC_ADDR=$(veranad keys show "${{ env.USER_ACC }}" -a --keyring-backend test)
+          echo "USER_ACC_ADDR=${USER_ACC_ADDR}" >> "$GITHUB_ENV"
+          echo "Corporation operator: ${USER_ACC_ADDR}"
+          echo "$AGENT_MNEMONIC" | veranad keys add "${{ env.AGENT_ACC }}" --recover --keyring-backend test
+          AGENT_ADDR=$(veranad keys show "${{ env.AGENT_ACC }}" -a --keyring-backend test)
+          echo "AGENT_ADDR=${AGENT_ADDR}" >> "$GITHUB_ENV"
+          echo "Agent account (vs_operator): ${AGENT_ADDR}"
+
+      - name: Resolve dpp-vs DID
+        if: inputs.step == 'deploy' || inputs.step == 'onboard-verifier' || inputs.step == 'all'
+        run: |
+          source common/common.sh
+          set_network_vars "$NETWORK"
+          DPP_PUBLIC_URL="https://dpp-vs.${VS_NAME}.demos.${NETWORK}.verana.network"
+          DPP_DID=$(fetch_did_from_log "$DPP_PUBLIC_URL")
+          if [ -z "$DPP_DID" ]; then
+            echo "::error::Could not fetch dpp-vs DID from ${DPP_PUBLIC_URL}/.well-known/did.jsonl. Is dpp-vs deployed?"
+            exit 1
+          fi
+          echo "DPP_VS_DID=${DPP_DID}" >> "$GITHUB_ENV"
+          echo "dpp-vs DID: $DPP_DID"
+
+          resolve_corporation_for_did "$DPP_DID"
+          echo "CORPORATION_ID=${CORPORATION_ID}" >> "$GITHUB_ENV"
+          echo "Corporation: ${CORPORATION_ID}"
+
+      - name: Resolve deployment.yaml placeholders
+        if: inputs.step == 'deploy' || inputs.step == 'all'
+        run: |
+          if [ -z "${CORPORATION_ID:-}" ]; then
+            echo "::error::CORPORATION_ID is not set; the 'deploy' step resolves it from dpp-vs."
+            exit 1
+          fi
+          CHILD_VS_NAME="verifier-${VS_NAME}"
+          sed -e "s/__NETWORK__/${NETWORK}/g" -e "s/__CHILD_VS_NAME__/${CHILD_VS_NAME}/g" -e "s/__VS_NAME__/${VS_NAME}/g" \
+            -e "s/__CORPORATION_ID__/${CORPORATION_ID}/g" -e "s#__DPP_VS_DID__#${DPP_VS_DID}#g" \
+            verifier-vs/deployment.yaml > /tmp/deployment-resolved.yaml
+          echo "CHILD_VS_NAME=${CHILD_VS_NAME}" >> "$GITHUB_ENV"
+          echo "--- Resolved deployment.yaml ---"
+          cat /tmp/deployment-resolved.yaml
+
+      - name: Parse deployment.yaml
+        if: inputs.step == 'deploy' || inputs.step == 'all'
+        run: |
+          CHART_SOURCE=$(yq '.chartSource' /tmp/deployment-resolved.yaml)
+          CHART_VERSION=$(yq '.chartVersion' /tmp/deployment-resolved.yaml)
+          CHART_NAMESPACE="${{ secrets.K8S_NAMESPACE }}"
+          RELEASE_NAME=$(yq '.name' /tmp/deployment-resolved.yaml)
+          INGRESS_HOST=$(yq '.ingress.host' /tmp/deployment-resolved.yaml)
+          echo "CHART_SOURCE=${CHART_SOURCE}" >> "$GITHUB_ENV"
+          echo "CHART_VERSION=${CHART_VERSION}" >> "$GITHUB_ENV"
+          echo "CHART_NAMESPACE=${CHART_NAMESPACE}" >> "$GITHUB_ENV"
+          echo "RELEASE_NAME=${RELEASE_NAME}" >> "$GITHUB_ENV"
+          echo "INGRESS_HOST=${INGRESS_HOST}" >> "$GITHUB_ENV"
+
+      - name: Ensure agent secret exists
+        if: inputs.step == 'deploy' || inputs.step == 'all'
+        run: |
+          kubectl create namespace "$CHART_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "$CHART_NAMESPACE" get secret verifier-vs-secrets > /dev/null 2>&1 || \
+          kubectl -n "$CHART_NAMESPACE" create secret generic verifier-vs-secrets \
+            --from-literal=VERIFIER_VS_AGENT_MNEMONIC="${{ secrets.VERIFIER_VS_AGENT_MNEMONIC }}"
+
+      - name: Deploy VS Agent via Helm
+        if: inputs.step == 'deploy' || inputs.step == 'all'
+        run: |
+          yq 'del(.chartSource, .chartVersion)' /tmp/deployment-resolved.yaml > /tmp/helm-values.yaml
+          yq -i '.didcommLabel = env(SERVICE_NAME)' /tmp/helm-values.yaml
+          helm upgrade --install "$RELEASE_NAME" "$CHART_SOURCE" \
+            --version "$CHART_VERSION" \
+            --namespace "$CHART_NAMESPACE" --create-namespace \
+            --values /tmp/helm-values.yaml \
+            --wait --timeout 300s
+
+      - name: Port-forward child VS Agent
+        if: inputs.step == 'onboard-verifier' || inputs.step == 'all'
+        run: |
+          RELEASE_NAME="${RELEASE_NAME:-verifier-${VS_NAME}}"
+          kubectl port-forward -n "${{ secrets.K8S_NAMESPACE }}" "svc/$RELEASE_NAME" 3002:3000 &
+          echo "CHILD_PF_PID=$!" >> "$GITHUB_ENV"
+          sleep 5
+          curl -sf http://localhost:3002/v2/agent/health/live > /dev/null || {
+            echo "::error::Port-forward to child VS-Agent failed"
+            exit 1
+          }
+
+      - name: Port-forward dpp-vs Agent
+        if: inputs.step == 'onboard-verifier' || inputs.step == 'all'
+        run: |
+          kubectl port-forward -n "${{ secrets.K8S_NAMESPACE }}" "svc/${VS_NAME}" 3000:3000 &
+          echo "DPP_PF_PID=$!" >> "$GITHUB_ENV"
+          sleep 5
+          curl -sf http://localhost:3000/v2/agent/health/live > /dev/null || {
+            echo "::error::Port-forward to dpp-vs failed"
+            exit 1
+          }
+
+      - name: Provision the Service HOLDER entry
+        if: inputs.step == 'onboard-verifier' || inputs.step == 'all'
+        run: |
+          source common/common.sh
+          set_network_vars "$NETWORK"
+          resolve_corporation "$CORPORATION_ID"
+
+          CHILD_PUBLIC_URL="https://verifier-vs.${VS_NAME}.demos.${NETWORK}.verana.network"
+          CHILD_DID=$(fetch_did_from_log "$CHILD_PUBLIC_URL")
+          ECS_SERVICE_SCHEMA_ID=$(find_ecs_schema_id "$ECS_ECOSYSTEM_DID" "ServiceCredential")
+
+          if find_participant_with_vs_operator "$ECS_SERVICE_SCHEMA_ID" "$PP_ROLE_HOLDER" "$CHILD_DID" \
+               | grep -q "$AGENT_ADDR"; then
+            ok "Service HOLDER entry already names $AGENT_ADDR"
+          else
+            DPP_SERVICE_ISSUER_ID=$(find_active_participant \
+              "$ECS_SERVICE_SCHEMA_ID" "$PP_IDX_ROLE_ISSUER" "$DPP_VS_DID")
+            if [ -z "$DPP_SERVICE_ISSUER_ID" ]; then
+              echo "::error::dpp-vs holds no active Service ISSUER entry"
+              exit 1
+            fi
+            start_participant_op "$CORPORATION" "$PP_ROLE_HOLDER" "$DPP_SERVICE_ISSUER_ID" \
+              "$CHILD_DID" "$AGENT_ADDR" "$VSOA_HOLDER" > /dev/null
+          fi
+
+      - name: Validate the Service credential onboarding on dpp-vs
+        if: inputs.step == 'onboard-verifier' || inputs.step == 'all'
+        run: |
+          source common/common.sh
+          set_network_vars "$NETWORK"
+
+          CHILD_PUBLIC_URL="https://verifier-vs.${VS_NAME}.demos.${NETWORK}.verana.network"
+          CHILD_DID=$(fetch_did_from_log "$CHILD_PUBLIC_URL")
+          if [ -z "$CHILD_DID" ]; then
+            echo "::error::Could not read the DID of $CHILD_PUBLIC_URL"
+            exit 1
+          fi
+
+          ECS_SERVICE_SCHEMA_ID=$(find_ecs_schema_id "$ECS_ECOSYSTEM_DID" "ServiceCredential")
+
+          for _ in $(seq 1 12); do
+            if curl -sf "http://localhost:3000/v2/vt/flows?role=validator&schemaId=${ECS_SERVICE_SCHEMA_ID}" \
+                 | jq -e --arg did "$CHILD_DID" 'any(.items[]; .peerDid == $did)' > /dev/null 2>&1; then
+              break
+            fi
+            sleep 10
+          done
+
+          if has_completed_flow "http://localhost:3000" "$CHILD_DID" "$ECS_SERVICE_SCHEMA_ID"; then
+            ok "Already validated — skipping"
+          elif ! validate_pending_flow "http://localhost:3000" "$CHILD_DID" "$ECS_SERVICE_SCHEMA_ID"; then
+            echo "::error::Could not validate the Service credential onboarding for $CHILD_DID"
+            exit 1
+          fi
+
+      - name: Self-create VERIFIER on the DPP schema
+        if: inputs.step == 'onboard-verifier' || inputs.step == 'all'
+        run: |
+          if [ -z "${CORPORATION_ID:-}" ]; then
+            echo "::error::CORPORATION_ID is not set; the 'deploy' step resolves it from dpp-vs."
+            exit 1
+          fi
+          source common/common.sh
+          set_network_vars "$NETWORK"
+          resolve_corporation "$CORPORATION_ID"
+
+          CHILD_DID=$(curl -sf "http://localhost:3002/v2/agent/info" | jq -r '.did')
+          ok "Child DID: $CHILD_DID"
+
+          DPP_PUBLIC_URL="https://dpp-vs.${VS_NAME}.demos.${NETWORK}.verana.network"
+          CUSTOM_SCHEMA_ID=$(discover_custom_schema_id "${DPP_PUBLIC_URL}/.well-known/did.json")
+          if [ -z "$CUSTOM_SCHEMA_ID" ]; then
+            echo "::error::Could not discover the DPP schema from dpp-vs's DID document"
+            exit 1
+          fi
+          ok "DPP schema ID: $CUSTOM_SCHEMA_ID"
+
+          if EXISTING_PARTICIPANT_ID=$(find_active_participant "$CUSTOM_SCHEMA_ID" "$PP_IDX_ROLE_VERIFIER" "$CHILD_DID"); then
+            ok "Active VERIFIER participant already exists: $EXISTING_PARTICIPANT_ID — skipping"
+          else
+            ROOT_PARTICIPANT_ID=$(find_root_participant "$CUSTOM_SCHEMA_ID")
+            if [ -z "$ROOT_PARTICIPANT_ID" ]; then
+              echo "::error::Could not find the root participant for schema $CUSTOM_SCHEMA_ID"
+              exit 1
+            fi
+            VERIFIER_PARTICIPANT_ID=$(self_create_participant "$CORPORATION" "$PP_ROLE_VERIFIER" \
+              "$ROOT_PARTICIPANT_ID" "$CHILD_DID" "$AGENT_ADDR" "$VSOA_VERIFIER")
+            ok "VERIFIER participant created: $VERIFIER_PARTICIPANT_ID"
+          fi
+
+      - name: Stop port-forwards
+        if: always()
+        run: |
+          [ -n "${CHILD_PF_PID:-}" ] && kill "$CHILD_PF_PID" 2>/dev/null || true
+          [ -n "${DPP_PF_PID:-}" ] && kill "$DPP_PF_PID" 2>/dev/null || true
+          true
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Verifier VS" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "${INGRESS_HOST:-}" ]; then
+            echo "- **VS Agent:** https://${INGRESS_HOST}/.well-known/did.json" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "- **Network:** ${NETWORK:-unknown}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Service:** ${VS_NAME:-unknown}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Corporation ID:** ${CORPORATION_ID:-unset}" >> "$GITHUB_STEP_SUMMARY"
