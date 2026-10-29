@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **In progress — started 2026-10-21. Decisions D1–D6 and D8 locked. Minimum coherent set scaffolded: `dpp-vs` + `issuer-grantor-vs` + `verifier-vs` (agent-only children). Governance PDF release and first deployment not yet run.** |
+| Status | **In progress — started 2026-10-21. Decisions D1–D6 and D8 locked. Minimum coherent set scaffolded: `dpp-vs` + `issuer-grantor-vs` + `verifier-vs` (agent-only children). Governance PDF published as release `egf-v1` and digest pinned. First deployment not yet run.** |
 | Decision | **Option C**: create a *new* organization for DPP in this repo (`demo-dpp`), reusing `verana-demos/organization-vs` as the code template. Do **not** reuse the live "Verana Example Organization" Corporation or its "example" Ecosystem. |
 | Reference implementation | [`verana-labs/verana-demos`](https://github.com/verana-labs/verana-demos), `organization-vs/` + `.github/workflows/1_deploy-organization-vs.yml` (cloned locally at commit `e2b9983`) |
 | Target (first) | Verana **devnet**, Verifiable Trust **v4**, `vs-agent v2.0.0-dev.97`, `veranad v0.10.6` |
@@ -262,7 +262,7 @@ The first draft already exists in this repo under `passport/`, authored for **Pa
 **Detailed how-to (URL, digest, release checklist, corrections):** [`docs/egf-hosting.md`](egf-hosting.md).
 
 - [x] Write a **minimal DPP EGF** (D5 Proposal 2): source in `egf/dpp-ecosystem-egf-v1.md` (roles include Issuer grantor and verification service).
-- [ ] **Hosting (locked): GitHub Release asset in this repo (`demo-dpp`) only** — attach `dpp-ecosystem-egf-v1.pdf` to tag `egf-v1`; `EGF_DOC_URL` already points at that download URL. Prefer immutable releases; pin `EGF_DOC_DIGEST` after publish (see egf-hosting.md). Do not use `governance-docs` or Pages for DPP.
+- [x] **Hosting (locked): GitHub Release asset in this repo (`demo-dpp`) only** — `dpp-ecosystem-egf-v1.pdf` is attached to pre-release tag `egf-v1` (2026-10-29); `EGF_DOC_URL` points at that download URL and `EGF_DOC_DIGEST` is pinned in `dpp-vs/config.env`. Immutable release (hosting checklist E2) is still open. Do not use `governance-docs` or Pages for DPP.
 - [ ] **Immutability discipline:** never replace an asset on an existing release — its SHA-384 SRI digest is recorded on-chain at Corporation/ecosystem creation. Corrections ship as a new release (`egf-v2`, new URL) plus an on-chain governance-framework version increase. Rejected: Proposal 1 (reuse the Example EGF) as permanent value; Proposal 3 (full Council Template-EGF) for now.
 
 ### 6.4 Credential issuance roadmap — start with the brand's self-issued passport
@@ -375,7 +375,7 @@ Behaviour inherited from the demos, to keep:
 
 ### Phase 2 — DPP content
 - [x] Adopt `passport/` as the DPP schema draft (§6.2): `$PASSPORT_SCHEMA_FILE` points at the full schema (no copy anywhere). Still to do during/after first deployment: replace example placeholder data with real product data, and pass the chain-acceptance gate (fallback: point the same variable at the min schema).
-- [ ] Produce the governance document per D5 (§6.3): source draft written in `egf/dpp-ecosystem-egf-v1.md`; **still to do:** follow the checklist in [`docs/egf-hosting.md`](egf-hosting.md) (build PDF → release `egf-v1` → verify download → pin digest). The locked organization (D2) and service (D3) claims are already applied identically in `config.env` + `deployment.yaml`.
+- [x] Produce the governance document per D5 (§6.3): source in `egf/dpp-ecosystem-egf-v1.md`; PDF published as release `egf-v1`, download verified, digest pinned in `dpp-vs/config.env` ([`docs/egf-hosting.md`](egf-hosting.md)). The locked organization (D2) and service (D3) claims are already applied identically in `config.env` + `deployment.yaml`.
 
 **Exit criteria:** identities are exactly `Verana DPP Example Organization` (org) and `DPP Ecosystem (demo)` (service) — no `Verana Example Ecosystem` service identity or `example` schema/EGF references remain; both `passport/` examples validate against their schemas; the chosen schema is accepted by `create_credential_schema` on devnet.
 
