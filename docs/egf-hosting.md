@@ -240,9 +240,9 @@ They sit next to EGF hosting so the first deploy is coherent.
 
 | # | Action | Status / owner |
 |---|---|---|
-| E1 | Publish PDF as release asset `egf-v1` / `dpp-ecosystem-egf-v1.pdf` | To do |
+| E1 | Publish PDF as release asset `egf-v1` / `dpp-ecosystem-egf-v1.pdf` | Done 2026-10-29 — [pre-release `egf-v1`](https://github.com/verana-labs/demo-dpp/releases/tag/egf-v1) |
 | E2 | Enable immutable release if the repo supports it | To do |
-| E3 | Pin `EGF_DOC_DIGEST` in `dpp-vs/config.env` after publish | To do (recommended) |
+| E3 | Pin `EGF_DOC_DIGEST` in `dpp-vs/config.env` after publish | Done — `sha384-FE4GOtDCw4sTEpVVBzpznLLNGu7rxA0iJnikLJhOKonOHcSe9hsbQUCJXjHw/+s3` |
 | E4 | Document correction path = new tag + new digest + on-chain GF version bump (not edit-in-place) | This doc §7 |
 | E5 | Do not depend on `governance-docs` or Pages for DPP | Locked (D5) |
 

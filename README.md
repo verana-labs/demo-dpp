@@ -20,14 +20,14 @@ Deploy order (after merge and secrets): `dpp-vs` → `issuer-grantor-vs` → `ve
 
 ## Status
 
-Scaffolding for the minimum set is in progress on the feature branch:
+Scaffolding for the minimum set is on `main`:
 
 - `common/` — provisioning helpers vendored from `verana-labs/verana-demos`
 - `dpp-vs/` — ecosystem operator
 - `issuer-grantor-vs/` — operator-run Issuer grantor (agent only; no web UI yet)
 - `verifier-vs/` — operator-run verification service (agent only; no web UI yet)
 - `passport/` — Papapo product passport schema (single source of truth)
-- `egf/` — governance framework source; PDF must be published as release `egf-v1` before first deploy (step-by-step: [docs/egf-hosting.md](docs/egf-hosting.md))
+- `egf/` — governance framework source. PDF published as pre-release [`egf-v1`](https://github.com/verana-labs/demo-dpp/releases/tag/egf-v1); digest pinned in `dpp-vs/config.env` (see [docs/egf-hosting.md](docs/egf-hosting.md))
 
 ## Secrets required
 
