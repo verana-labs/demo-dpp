@@ -1,0 +1,10 @@
+# Node.js
+node_modules/
+dist/
+data/
+
+# Generated IDs
+*/ids.env
+
+# EGF PDFs are built by egf/build-pdf.sh and published as Release assets
+egf/*.pdf

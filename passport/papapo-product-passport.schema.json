@@ -1,0 +1,507 @@
+{
+  "$id": "https://papapo.shoes/verana/schemas/papapo-product-passport/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PapapoProductPassport",
+  "description": "Voluntary Digital Product Passport for Papapo barefoot children's footwear. Verana-shaped: validates credentialSubject claims. Color lives at product level (one passport per colorway); size lives on variants[]. At variant/instance level, use singular identity fields. Not an EU ESPR-compliant DPP until a footwear/textiles delegated act exists.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "credentialSubject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048,
+          "description": "DID or URI of the passport subject (model, variant, or serialized unit)."
+        },
+        "type": {
+          "type": "string",
+          "const": "PapapoProductPassport"
+        },
+        "passportLevel": {
+          "type": "string",
+          "enum": [
+            "model",
+            "variant",
+            "instance"
+          ],
+          "description": "model = product colorway with size variants[]; variant = one size SKU; instance = unique pair/unit."
+        },
+        "productId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Medusa product id (one colorway; sizes are variants)."
+        },
+        "productName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Style / model name shared across colorways (e.g. handle)."
+        },
+        "color": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Product colorway. Set once at product level; sizes differ in variants[]. A different color is a different product passport."
+        },
+        "variants": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "One sellable size SKU under a product (colorway) passport. Color is on the parent subject, not here.",
+            "required": [
+              "size"
+            ],
+            "properties": {
+              "variantId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "description": "Medusa product_variant id."
+              },
+              "gtin": {
+                "type": "string",
+                "pattern": "^([0-9]{8}|[0-9]{12}|[0-9]{13}|[0-9]{14})$",
+                "description": "GS1 GTIN (8, 12, 13, or 14 digits)."
+              },
+              "sku": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "size": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "Size label as sold (e.g. 24). Size varies per variant; color does not."
+              },
+              "sizeSystem": {
+                "type": "string",
+                "enum": [
+                  "EU",
+                  "US",
+                  "UK",
+                  "CM",
+                  "OTHER"
+                ],
+                "default": "EU"
+              },
+              "passportUri": {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 4096,
+                "description": "Optional per-variant passport page if different from the product page."
+              }
+            },
+            "anyOf": [
+              {
+                "required": [
+                  "gtin"
+                ]
+              },
+              {
+                "required": [
+                  "sku"
+                ]
+              },
+              {
+                "required": [
+                  "variantId"
+                ]
+              }
+            ]
+          },
+          "description": "Size SKUs for this product colorway. Required when passportLevel is model; MUST NOT be used at variant/instance."
+        },
+        "gtin": {
+          "type": "string",
+          "pattern": "^([0-9]{8}|[0-9]{12}|[0-9]{13}|[0-9]{14})$",
+          "description": "GTIN of this size SKU. Used only when passportLevel is variant or instance."
+        },
+        "sku": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "SKU of this size. Used only when passportLevel is variant or instance."
+        },
+        "variantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Medusa product_variant id. Used only when passportLevel is variant or instance."
+        },
+        "size": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Size of this SKU. Used only when passportLevel is variant or instance; at model level use variants[].size."
+        },
+        "sizeSystem": {
+          "type": "string",
+          "enum": [
+            "EU",
+            "US",
+            "UK",
+            "CM",
+            "OTHER"
+          ],
+          "default": "EU"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "barefoot_shoe",
+            "sandal",
+            "boot",
+            "accessory",
+            "other"
+          ],
+          "default": "barefoot_shoe"
+        },
+        "intendedUse": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "Short use claim (e.g. children's everyday barefoot footwear)."
+        },
+        "materials": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "part",
+              "description"
+            ],
+            "properties": {
+              "part": {
+                "type": "string",
+                "enum": [
+                  "upper",
+                  "lining",
+                  "insole",
+                  "outsole",
+                  "midsole",
+                  "laces",
+                  "hardware",
+                  "other"
+                ]
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "composition": {
+                "type": "string",
+                "maxLength": 512,
+                "description": "Fibre/material composition string when applicable."
+              },
+              "recycledContentPercent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "materialId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "description": "Material / material-SKU identifier from the bill of materials."
+              },
+              "materialLotId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "description": "Material lot/batch identifier. Join key to supplier MaterialCompliance and lab TestAttestation credentials about the same lot."
+              },
+              "supplierId": {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 2048,
+                "description": "DID or URI of the material supplier, when known."
+              },
+              "evidenceCredentialIds": {
+                "type": "array",
+                "maxItems": 16,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "maxLength": 2048
+                },
+                "description": "IDs of evidence credentials (e.g. supplier compliance, lab attestation) covering this material entry."
+              }
+            }
+          }
+        },
+        "manufacturer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "countryCode"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "countryCode": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$",
+              "description": "ISO 3166-1 alpha-2 of manufacturing country."
+            },
+            "registryId": {
+              "type": "string",
+              "maxLength": 256,
+              "description": "Optional external company-register id for the manufacturer."
+            }
+          }
+        },
+        "brandOwner": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "countryCode"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "countryCode": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            },
+            "website": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 4096
+            }
+          }
+        },
+        "countryOfOrigin": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$",
+          "description": "ISO 3166-1 alpha-2 preferential origin / made-in claim."
+        },
+        "batchOrLot": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Production batch or lot when passportLevel is instance (or known at variant)."
+        },
+        "serialNumber": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Unique unit serial when passportLevel is instance."
+        },
+        "manufacturedAt": {
+          "type": "string",
+          "format": "date",
+          "description": "Manufacture or release date (YYYY-MM-DD) when known."
+        },
+        "careUri": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 4096
+        },
+        "careDigestSri": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "repairUri": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 4096
+        },
+        "repairDigestSri": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "endOfLifeUri": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 4096,
+          "description": "Reuse, recycling, or take-back information."
+        },
+        "endOfLifeDigestSri": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "passportUri": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 4096,
+          "description": "Human-readable passport page (model: /passport/{handle}; variant: /passport/{gtin})."
+        },
+        "passportDigestSri": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "imageUri": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 4096
+        },
+        "imageDigestSri": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "claims": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "enum": [
+              "barefoot",
+              "wide_toe_box",
+              "zero_drop",
+              "flexible_sole",
+              "children",
+              "leather_free",
+              "handmade",
+              "other"
+            ]
+          },
+          "uniqueItems": true,
+          "description": "Non-regulatory product claims for discovery/filtering. Not a substitute for lab evidence."
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 2048,
+          "description": "Optional free-text. MUST NOT contain personal data of customers or children."
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "passportLevel",
+        "productName",
+        "materials",
+        "manufacturer",
+        "brandOwner",
+        "countryOfOrigin",
+        "passportUri"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "passportLevel": {
+                "const": "model"
+              }
+            },
+            "required": [
+              "passportLevel"
+            ]
+          },
+          "then": {
+            "required": [
+              "color",
+              "variants"
+            ],
+            "properties": {
+              "gtin": false,
+              "sku": false,
+              "variantId": false,
+              "size": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "passportLevel": {
+                "const": "variant"
+              }
+            },
+            "required": [
+              "passportLevel"
+            ]
+          },
+          "then": {
+            "required": [
+              "color",
+              "size"
+            ],
+            "properties": {
+              "variants": false
+            },
+            "anyOf": [
+              {
+                "required": [
+                  "gtin"
+                ]
+              },
+              {
+                "required": [
+                  "sku"
+                ]
+              },
+              {
+                "required": [
+                  "variantId"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "passportLevel": {
+                "const": "instance"
+              }
+            },
+            "required": [
+              "passportLevel"
+            ]
+          },
+          "then": {
+            "required": [
+              "color",
+              "size",
+              "serialNumber"
+            ],
+            "properties": {
+              "variants": false
+            },
+            "anyOf": [
+              {
+                "required": [
+                  "gtin"
+                ]
+              },
+              {
+                "required": [
+                  "sku"
+                ]
+              },
+              {
+                "required": [
+                  "variantId"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "required": [
+    "credentialSubject"
+  ]
+}
