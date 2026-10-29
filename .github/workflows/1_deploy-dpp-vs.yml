@@ -208,7 +208,7 @@ jobs:
       - name: Ensure agent secret exists
         if: inputs.step == 'deploy' || inputs.step == 'all'
         run: |
-          kubectl create namespace "$CHART_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          # The deployer token is namespace-scoped, so demo-dpp must already exist.
           # Only the agent mnemonic goes into the cluster (the pod mounts it as
           # VERANA_ACCOUNT_MNEMONIC). The operator mnemonic DPP_VS_MNEMONIC
           # stays solely in GitHub Secrets and is never stored in the cluster.
@@ -225,7 +225,7 @@ jobs:
           fi
           helm upgrade --install "$RELEASE_NAME" "$CHART_SOURCE" \
             --version "$CHART_VERSION" \
-            --namespace "$CHART_NAMESPACE" --create-namespace \
+            --namespace "$CHART_NAMESPACE" \
             --values /tmp/helm-values.yaml \
             --wait --timeout 300s
 
