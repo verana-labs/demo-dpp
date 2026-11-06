@@ -97,7 +97,7 @@ jobs:
         run: |
           source common/common.sh
           set_network_vars "$NETWORK"
-          DPP_PUBLIC_URL="https://dpp-vs.${VS_NAME}.demos.${NETWORK}.verana.network"
+          DPP_PUBLIC_URL="https://dpp-vs.${VS_NAME}.demos.verana.network"
           DPP_DID=$(fetch_did_from_log "$DPP_PUBLIC_URL")
           if [ -z "$DPP_DID" ]; then
             echo "::error::Could not fetch dpp-vs DID from ${DPP_PUBLIC_URL}/.well-known/did.jsonl. Is dpp-vs deployed?"
@@ -188,7 +188,7 @@ jobs:
           set_network_vars "$NETWORK"
           resolve_corporation "$CORPORATION_ID"
 
-          CHILD_PUBLIC_URL="https://verifier-vs.${VS_NAME}.demos.${NETWORK}.verana.network"
+          CHILD_PUBLIC_URL="https://verifier-vs.${VS_NAME}.demos.verana.network"
           CHILD_DID=$(fetch_did_from_log "$CHILD_PUBLIC_URL")
           ECS_SERVICE_SCHEMA_ID=$(find_ecs_schema_id "$ECS_ECOSYSTEM_DID" "ServiceCredential")
 
@@ -212,7 +212,7 @@ jobs:
           source common/common.sh
           set_network_vars "$NETWORK"
 
-          CHILD_PUBLIC_URL="https://verifier-vs.${VS_NAME}.demos.${NETWORK}.verana.network"
+          CHILD_PUBLIC_URL="https://verifier-vs.${VS_NAME}.demos.verana.network"
           CHILD_DID=$(fetch_did_from_log "$CHILD_PUBLIC_URL")
           if [ -z "$CHILD_DID" ]; then
             echo "::error::Could not read the DID of $CHILD_PUBLIC_URL"
@@ -250,7 +250,7 @@ jobs:
           CHILD_DID=$(curl -sf "http://localhost:3002/v2/agent/info" | jq -r '.did')
           ok "Child DID: $CHILD_DID"
 
-          DPP_PUBLIC_URL="https://dpp-vs.${VS_NAME}.demos.${NETWORK}.verana.network"
+          DPP_PUBLIC_URL="https://dpp-vs.${VS_NAME}.demos.verana.network"
           CUSTOM_SCHEMA_ID=$(discover_custom_schema_id "${DPP_PUBLIC_URL}/.well-known/did.json")
           if [ -z "$CUSTOM_SCHEMA_ID" ]; then
             echo "::error::Could not discover the DPP schema from dpp-vs's DID document"

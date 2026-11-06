@@ -5,12 +5,16 @@
 # and __ECS_ECOSYSTEM_DID__ placeholders at deploy time (CORPORATION_ID comes
 # from config.env or the workflow input, and the ECS Ecosystem DID is read from
 # the ECS Ecosystem agent of the network).
-# Example: vs/devnet-example → __NETWORK__=devnet, __VS_NAME__=example
+# Example: vs/testnet-dpp → __NETWORK__=testnet, __VS_NAME__=dpp
+#
+# The public host omits the network. *.dpp.demos.verana.network resolves to the
+# devnet ingress, which is the cluster this repo's kubeconfig deploys to.
+# __NETWORK__ still selects the chain (rpc, indexer, chain id).
 chartSource: oci://registry-1.docker.io/veranalabs/vs-agent-chart
 chartVersion: v2.0.0-dev.97
 
 global:
-  domain: __VS_NAME__.demos.__NETWORK__.verana.network
+  domain: __VS_NAME__.demos.verana.network
 
 name: __VS_NAME__
 replicas: 1
@@ -54,8 +58,8 @@ resources:
     memory: 512Mi
 
 ingress:
-  host: "dpp-vs.__VS_NAME__.demos.__NETWORK__.verana.network"
-  tlsSecret: "dpp-vs.__VS_NAME__.demos.__NETWORK__.verana.network-cert"
+  host: "dpp-vs.__VS_NAME__.demos.verana.network"
+  tlsSecret: "dpp-vs.__VS_NAME__.demos.verana.network-cert"
   public:
     enableCors: true
   private:
@@ -117,9 +121,9 @@ extraEnv:
   - name: ECS_CLAIMS_SERVICE_MINIMUM_AGE_REQUIRED
     value: "18"
   - name: ECS_CLAIMS_SERVICE_TERMS_AND_CONDITIONS_URI
-    value: "https://dpp-vs.__VS_NAME__.demos.__NETWORK__.verana.network/vt/default/terms.html"
+    value: "https://dpp-vs.__VS_NAME__.demos.verana.network/vt/default/terms.html"
   - name: ECS_CLAIMS_SERVICE_PRIVACY_POLICY_URI
-    value: "https://dpp-vs.__VS_NAME__.demos.__NETWORK__.verana.network/vt/default/privacy.html"
+    value: "https://dpp-vs.__VS_NAME__.demos.verana.network/vt/default/privacy.html"
 
 storage:
   size: 1Gi
