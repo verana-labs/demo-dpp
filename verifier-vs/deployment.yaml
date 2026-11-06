@@ -3,11 +3,13 @@
 # Network and service name are derived from the branch name. The workflow
 # substitutes __NETWORK__, __VS_NAME__, __CHILD_VS_NAME__, __CORPORATION_ID__
 # and __DPP_VS_DID__ placeholders at deploy time.
+# The public host is __VS_NAME__.demos.verana.network (no network label).
+# __NETWORK__ still selects the chain.
 chartSource: oci://registry-1.docker.io/veranalabs/vs-agent-chart
 chartVersion: v2.0.0-dev.97
 
 global:
-  domain: __VS_NAME__.demos.__NETWORK__.verana.network
+  domain: __VS_NAME__.demos.verana.network
 
 name: __CHILD_VS_NAME__
 replicas: 1
@@ -40,8 +42,8 @@ resources:
     memory: 512Mi
 
 ingress:
-  host: "verifier-vs.__VS_NAME__.demos.__NETWORK__.verana.network"
-  tlsSecret: "verifier-vs.__VS_NAME__.demos.__NETWORK__.verana.network-cert"
+  host: "verifier-vs.__VS_NAME__.demos.verana.network"
+  tlsSecret: "verifier-vs.__VS_NAME__.demos.verana.network-cert"
   public:
     enableCors: true
   private:
@@ -73,9 +75,9 @@ extraEnv:
   - name: ECS_CLAIMS_SERVICE_MINIMUM_AGE_REQUIRED
     value: "18"
   - name: ECS_CLAIMS_SERVICE_TERMS_AND_CONDITIONS_URI
-    value: "https://verifier-vs.__VS_NAME__.demos.__NETWORK__.verana.network/vt/default/terms.html"
+    value: "https://verifier-vs.__VS_NAME__.demos.verana.network/vt/default/terms.html"
   - name: ECS_CLAIMS_SERVICE_PRIVACY_POLICY_URI
-    value: "https://verifier-vs.__VS_NAME__.demos.__NETWORK__.verana.network/vt/default/privacy.html"
+    value: "https://verifier-vs.__VS_NAME__.demos.verana.network/vt/default/privacy.html"
 
 storage:
   size: 1Gi
