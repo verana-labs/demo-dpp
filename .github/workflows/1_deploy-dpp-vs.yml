@@ -22,6 +22,14 @@ on:
           the workflow creates a new one when the chain does not hold it.
         required: false
         type: string
+      reset-wallet:
+        description: >-
+          Delete this agent's wallet disk before Helm install. The same
+          mnemonics then mint a new DID for the current host. Leave this off
+          on every later run.
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   deploy-dpp-vs:
@@ -215,6 +223,20 @@ jobs:
           kubectl -n "$CHART_NAMESPACE" get secret dpp-vs-secrets > /dev/null 2>&1 || \
           kubectl -n "$CHART_NAMESPACE" create secret generic dpp-vs-secrets \
             --from-literal=DPP_VS_AGENT_MNEMONIC="${{ secrets.DPP_VS_AGENT_MNEMONIC }}"
+
+      # The chart keeps the wallet PVC across uninstalls. A host change makes
+      # the agent refuse to start while that disk still holds the old DID.
+      - name: Reset agent wallet
+        if: >-
+          (inputs.step == 'deploy' || inputs.step == 'all') &&
+          (inputs.reset-wallet == true || inputs.reset-wallet == 'true')
+        run: |
+          if kubectl -n "$CHART_NAMESPACE" get statefulset "$RELEASE_NAME" >/dev/null 2>&1; then
+            kubectl -n "$CHART_NAMESPACE" scale statefulset "$RELEASE_NAME" --replicas=0
+            kubectl -n "$CHART_NAMESPACE" rollout status statefulset "$RELEASE_NAME" --timeout=180s
+          fi
+          kubectl -n "$CHART_NAMESPACE" delete pvc "${RELEASE_NAME}-vsa-pv" --ignore-not-found --wait=true
+          echo "Deleted wallet volume ${RELEASE_NAME}-vsa-pv in ${CHART_NAMESPACE}. Helm will create an empty one."
 
       - name: Deploy VS Agent via Helm
         if: inputs.step == 'deploy' || inputs.step == 'all'
