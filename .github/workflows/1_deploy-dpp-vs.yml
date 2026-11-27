@@ -10,7 +10,7 @@ on:
         options:
           - bootstrap-corporation
           - deploy
-          - validate-ecs-onboarding
+          - ecs-onboarding
           - create-dpp-ecosystem
           - all
         default: all
@@ -73,14 +73,15 @@ jobs:
             echo "CORPORATION_ID=${{ inputs.corporation-id }}" >> "$GITHUB_ENV"
           fi
 
-      # The chart trusts the ECS Ecosystem by its DID, which changes on every
-      # wipe of that agent. Read it from the agent, so no file pins it.
+      # The chart trusts the ECS Ecosystem by its DID, the DID of the Verana
+      # Council VS Agent, which changes on every wipe of that agent. Read it
+      # from the agent, so no file pins it.
       - name: Resolve the ECS Ecosystem DID
         run: |
           source common/common.sh
           set_network_vars "$NETWORK"
           if [ -z "${ECS_ECOSYSTEM_DID:-}" ]; then
-            echo "::error::Could not read the ECS Ecosystem DID from ${ECS_ECOSYSTEM_PUBLIC_URL}. Deploy the ECS Ecosystem on ${NETWORK} first."
+            echo "::error::Could not read the ECS Ecosystem DID from ${ECS_ECOSYSTEM_PUBLIC_URL}. Is the Verana Council VS Agent up on ${NETWORK}?"
             exit 1
           fi
           echo "ECS_ECOSYSTEM_DID=${ECS_ECOSYSTEM_DID}" >> "$GITHUB_ENV"
@@ -288,7 +289,7 @@ jobs:
       # PORT-FORWARD: Access admin API via kubectl
       # -----------------------------------------------------------------------
       - name: Port-forward VS Agent admin API
-        if: inputs.step == 'validate-ecs-onboarding' || inputs.step == 'create-dpp-ecosystem' || inputs.step == 'all'
+        if: inputs.step == 'ecs-onboarding' || inputs.step == 'create-dpp-ecosystem' || inputs.step == 'all'
         run: |
           kubectl port-forward -n "$CHART_NAMESPACE" "svc/$RELEASE_NAME" 3000:3000 &
           echo "PF_PID=$!" >> "$GITHUB_ENV"
@@ -299,37 +300,15 @@ jobs:
           }
           echo "Port-forward established"
 
-      # The Organization credential comes from the service the ECS Ecosystem
-      # corporation assigned the ISSUER entry to, not from the ecosystem agent.
-      # That service belongs to verana-deploy and lives in the chain namespace.
-      # On devnet, that namespace is in the same cluster as these demo services,
-      # so the workflow can validate the onboarding by itself. On testnet, the
-      # issuer lives in another cluster, and this repository holds no kubeconfig
-      # for it on purpose: the validation then happens from that cluster.
-      - name: Port-forward ecs-org-issuer admin API
-        if: inputs.step == 'validate-ecs-onboarding' || inputs.step == 'all'
-        run: |
-          ECS_NAMESPACE="${ECS_NAMESPACE:-vna-${NETWORK}-1}"
-          if ! kubectl -n "$ECS_NAMESPACE" get svc ecs-org-issuer > /dev/null 2>&1; then
-            echo "::notice::ecs-org-issuer is not reachable from this cluster ($ECS_NAMESPACE). The onboarding is started here and validated from the cluster that hosts the issuer."
-            echo "ECS_ORG_ISSUER_ADMIN_API=" >> "$GITHUB_ENV"
-            exit 0
-          fi
-          kubectl port-forward -n "$ECS_NAMESPACE" svc/ecs-org-issuer 3101:3000 &
-          echo "ECS_PF_PID=$!" >> "$GITHUB_ENV"
-          sleep 5
-          curl -sf http://localhost:3101/v2/agent/health/live > /dev/null || {
-            echo "Port-forward to ecs-org-issuer failed — is it running in $ECS_NAMESPACE?"
-            exit 1
-          }
-          echo "ECS_ORG_ISSUER_ADMIN_API=http://localhost:3101" >> "$GITHUB_ENV"
-          echo "Port-forward established"
-
       # -----------------------------------------------------------------------
-      # VALIDATE-ECS-ONBOARDING: approve dpp-vs's pending vt-flow
+      # ECS-ONBOARDING: join the ECS Ecosystem of the Verana Council
       # -----------------------------------------------------------------------
-      - name: "Validate ECS onboarding"
-        if: inputs.step == 'validate-ecs-onboarding' || inputs.step == 'all'
+      # The Verana Council VS Agent issues the Organization credential. A member
+      # of the Verana Council validates the request by hand in the Verana
+      # frontend, so this step only starts the onboarding. The last step of the
+      # job waits for the validation.
+      - name: "ECS onboarding"
+        if: inputs.step == 'ecs-onboarding' || inputs.step == 'all'
         run: |
           source common/common.sh
           set_network_vars "$NETWORK"
@@ -347,6 +326,8 @@ jobs:
           ECS_SERVICE_SCHEMA_ID=$(find_ecs_schema_id "$ECS_ECOSYSTEM_DID" "ServiceCredential")
           ok "ECS schema IDs: organization=$ECS_ORG_SCHEMA_ID service=$ECS_SERVICE_SCHEMA_ID"
 
+          # The Verana Council VS Agent is the issuer of the Organization
+          # credential, with its own ISSUER entry on the Organization schema.
           ECS_ORG_ISSUER_DID=$(fetch_did_from_log "$ECS_ORG_ISSUER_PUBLIC_URL")
           ECS_ORG_ISSUER_PARTICIPANT_ID=$(find_active_participant \
             "$ECS_ORG_SCHEMA_ID" "$PP_IDX_ROLE_ISSUER" "$ECS_ORG_ISSUER_DID") || {
@@ -368,29 +349,17 @@ jobs:
           fi
 
           # HOLDER is the one role whose vs_operator may send TriggerResolver.
-          if ! find_participant_with_vs_operator "$ECS_ORG_SCHEMA_ID" "$PP_ROLE_HOLDER" "$AGENT_DID" \
-               | grep -q "$AGENT_ADDR"; then
-            start_participant_op "$CORPORATION" "$PP_ROLE_HOLDER" "$ECS_ORG_ISSUER_PARTICIPANT_ID" "$AGENT_DID" \
-              "$AGENT_ADDR" "$VSOA_HOLDER"
-            log "Waiting for the agent to send the onboarding request..."
-            sleep 20
+          # The agent reacts to the new entry and sends its onboarding request,
+          # with its Organization claims, to the Council VS Agent by itself.
+          HOLDER_ID=$(find_participant_with_vs_operator "$ECS_ORG_SCHEMA_ID" "$PP_ROLE_HOLDER" "$AGENT_DID" \
+            | grep "$AGENT_ADDR" | cut -f1 || true)
+          if [ -z "$HOLDER_ID" ]; then
+            HOLDER_ID=$(start_participant_op "$CORPORATION" "$PP_ROLE_HOLDER" "$ECS_ORG_ISSUER_PARTICIPANT_ID" "$AGENT_DID" \
+              "$AGENT_ADDR" "$VSOA_HOLDER")
           else
-            ok "Organization HOLDER entry already names $AGENT_ADDR"
+            ok "Organization HOLDER entry $HOLDER_ID already names $AGENT_ADDR"
           fi
-
-          # --- Complete the onboarding process --------------------------------
-          if [ -z "${ECS_ORG_ISSUER_ADMIN_API:-}" ]; then
-            echo "::notice::Validate the onboarding of $AGENT_DID on the Organization schema ($ECS_ORG_SCHEMA_ID) from the cluster that hosts ecs-org-issuer."
-            warn "The issuer admin API is not reachable from here. Run the verana-deploy workflow"
-            warn "'Validate an ECS Organization onboarding' with environment=${NETWORK}, applicant-did=$AGENT_DID, schema-id=$ECS_ORG_SCHEMA_ID."
-            warn "The agent receives its Organization credential as soon as the issuer validates. The later steps do not wait for it."
-          elif has_completed_flow "$ECS_ORG_ISSUER_ADMIN_API" "$AGENT_DID" "$ECS_ORG_SCHEMA_ID"; then
-            ok "Already validated — skipping"
-          else
-            # The agent composed its Organization claims from its ECS_CLAIMS_ORG_*
-            # variables and sent them on the request, so this step only validates.
-            validate_pending_flow "$ECS_ORG_ISSUER_ADMIN_API" "$AGENT_DID" "$ECS_ORG_SCHEMA_ID"
-          fi
+          echo "ECS_ORG_HOLDER_ID=${HOLDER_ID}" >> "$GITHUB_ENV"
 
       # -----------------------------------------------------------------------
       # CREATE-DPP-ECOSYSTEM: dpp-vs's own Ecosystem + schema + root
@@ -432,13 +401,26 @@ jobs:
           fi
 
       # -----------------------------------------------------------------------
+      # WAIT: a member of the Verana Council validates the Organization request
+      # -----------------------------------------------------------------------
+      # Last, so that a run does everything else first. The Council VS Agent
+      # delivers the Organization credential as soon as a member of the Council
+      # validates the entry in the Verana frontend. A run that times out loses
+      # nothing: run 'ecs-onboarding' again after the validation.
+      - name: "Wait for the Verana Council"
+        if: inputs.step == 'ecs-onboarding' || inputs.step == 'all'
+        run: |
+          source common/common.sh
+          set_network_vars "$NETWORK"
+          wait_for_council_validation "$ECS_ORG_HOLDER_ID" "ECS Organization of $AGENT_DID"
+
+      # -----------------------------------------------------------------------
       # CLEANUP
       # -----------------------------------------------------------------------
       - name: Stop port-forwards
         if: always()
         run: |
           [ -n "${PF_PID:-}" ] && kill "$PF_PID" 2>/dev/null || true
-          [ -n "${ECS_PF_PID:-}" ] && kill "$ECS_PF_PID" 2>/dev/null || true
           true
 
       # -----------------------------------------------------------------------

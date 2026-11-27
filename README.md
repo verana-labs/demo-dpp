@@ -18,6 +18,10 @@ First delivery is three agents under one Corporation:
 
 Deploy order (after merge and secrets): `dpp-vs` → `issuer-grantor-vs` → `verifier-vs`, from branch `vs/devnet-dpp`.
 
+## ECS credentials
+
+The agents trust the ECS Ecosystem of the Verana Council (`council.<network>.verana.network`). `dpp-vs` gets its ECS Organization credential from the Verana Council VS Agent: the `ecs-onboarding` step of `1_deploy-dpp-vs.yml` opens the request, and a member of the Verana Council validates it in the Verana frontend (`app.<network>.verana.network`). The workflow waits for that validation, 30 minutes by default; when it times out, run the step again after the validation.
+
 ## Status
 
 Scaffolding for the minimum set is on `main`:
