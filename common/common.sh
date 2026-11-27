@@ -10,6 +10,7 @@
 #   - Network configuration (set_network_vars)
 #   - Corporation / Ecosystem / Participant helpers (co/ec/cs/pp modules)
 #   - vt-flow validator helper (validate_pending_flow)
+#   - Wait for a Verana Council validation (wait_for_council_validation)
 #   - Schema download / logo helpers
 #   - AnonCreds VTJSC discovery
 #
@@ -59,18 +60,16 @@ set_network_vars() {
   FAUCET_URL="${FAUCET_URL:-https://faucet.${network}.verana.network}"
   INDEXER_URL="${INDEXER_URL:-https://idx.${network}.verana.network}"
 
-  # The shared ECS Ecosystem VS Agent (verana-deploy/scripts/ecs-ecosystem).
-  # It defines the ECS schemas. It does NOT issue the Organization
-  # credentials — see ECS_ORG_ISSUER_* below.
-  ECS_ECOSYSTEM_PUBLIC_URL="${ECS_ECOSYSTEM_PUBLIC_URL:-https://ecs-ecosystem.${network}.verana.network}"
-  # Port-forward before use: kubectl port-forward -n vna-${network}-1 svc/ecs-ecosystem 3100:3000
-  ECS_ECOSYSTEM_ADMIN_API="${ECS_ECOSYSTEM_ADMIN_API:-http://localhost:3100}"
-  # The Verifiable Service the ECS Ecosystem corporation assigned the
-  # ISSUER Participant entry on the Organization schema. Every ECS
-  # Organization credential comes from here, over the onboarding process.
-  # Port-forward before use: kubectl port-forward -n vna-${network}-1 svc/ecs-org-issuer 3101:3000
-  ECS_ORG_ISSUER_PUBLIC_URL="${ECS_ORG_ISSUER_PUBLIC_URL:-https://ecs-org-issuer.${network}.verana.network}"
-  ECS_ORG_ISSUER_ADMIN_API="${ECS_ORG_ISSUER_ADMIN_API:-http://localhost:3101}"
+  # The VS Agent of the Verana Council (verana-deploy docs/council.md). It
+  # controls the ECS Ecosystem, so its DID is the ECS Ecosystem DID, and it
+  # holds an ISSUER Participant entry on the ECS Organization schema: every
+  # ECS Organization credential of this demo comes from it, over the
+  # onboarding process.
+  ECS_ECOSYSTEM_PUBLIC_URL="${ECS_ECOSYSTEM_PUBLIC_URL:-https://council.${network}.verana.network}"
+  ECS_ORG_ISSUER_PUBLIC_URL="${ECS_ORG_ISSUER_PUBLIC_URL:-${ECS_ECOSYSTEM_PUBLIC_URL}}"
+  # A member of the Verana Council validates each ECS Organization request by
+  # hand, in the Verana frontend. See wait_for_council_validation.
+  VERANA_FRONTEND_URL="${VERANA_FRONTEND_URL:-https://app.${network}.verana.network}"
 
   # The DID of the ECS Ecosystem agent embeds a SCID that changes on every
   # wipe of its wallet, so read it from the agent instead of pinning it here.
@@ -78,13 +77,13 @@ set_network_vars() {
     ECS_ECOSYSTEM_DID=$(fetch_did_from_log "$ECS_ECOSYSTEM_PUBLIC_URL" || true)
     if [ -z "$ECS_ECOSYSTEM_DID" ]; then
       warn "Could not read the ECS Ecosystem DID from ${ECS_ECOSYSTEM_PUBLIC_URL}/.well-known/did.jsonl"
-      warn "Every step that needs an ECS schema will fail. Is the ECS Ecosystem deployed on ${network}?"
+      warn "Every step that needs an ECS schema will fail. Is the Verana Council VS Agent up on ${network}?"
     fi
   fi
 
   export CHAIN_ID NODE_RPC FEES FAUCET_URL INDEXER_URL
-  export ECS_ECOSYSTEM_PUBLIC_URL ECS_ECOSYSTEM_DID ECS_ECOSYSTEM_ADMIN_API
-  export ECS_ORG_ISSUER_PUBLIC_URL ECS_ORG_ISSUER_ADMIN_API
+  export ECS_ECOSYSTEM_PUBLIC_URL ECS_ECOSYSTEM_DID
+  export ECS_ORG_ISSUER_PUBLIC_URL VERANA_FRONTEND_URL
 }
 
 # ---------------------------------------------------------------------------
@@ -952,6 +951,51 @@ find_participant_with_vs_operator() {
         | select(.did == $did and .revoked == null and .slashed == null)
         | [(.id|tostring), (.vs_operator // "")] | @tsv' \
     | head -1
+}
+
+# The onboarding state of a Participant entry (op_state): PENDING, VALIDATED...
+# Usage: participant_op_state <participant_id>
+participant_op_state() {
+  veranad query pp get-participant "$1" --node "$NODE_RPC" --output json 2>/dev/null \
+    | jq -r '.participant.op_state // empty'
+}
+
+# How long a run waits for a member of the Verana Council to validate an ECS
+# Organization request, in seconds. A run that stops while it waits loses
+# nothing: the next run finds the PENDING entry again and waits for it.
+COUNCIL_VALIDATION_WAIT="${COUNCIL_VALIDATION_WAIT:-1800}"
+
+# Wait until a member of the Verana Council validates a Participant entry in
+# the Verana frontend. The Council VS Agent then delivers the credential by
+# itself. No script of this repository can validate the entry: only an
+# operator of the Council may sign that transaction.
+# Usage: wait_for_council_validation <participant_id> [label]
+wait_for_council_validation() {
+  local participant_id=$1
+  local label="${2:-ECS Organization request}"
+  local state waited=0
+
+  state=$(participant_op_state "$participant_id")
+  if [ "$state" = "VALIDATED" ]; then
+    ok "Participant $participant_id is validated (${label})"
+    return 0
+  fi
+
+  log "Waiting for a member of the Verana Council to validate participant $participant_id (${label})..."
+  warn "Ask a member of the Verana Council to validate participant $participant_id in the Verana frontend (${VERANA_FRONTEND_URL})."
+  [ -n "${GITHUB_ACTIONS:-}" ] \
+    && echo "::notice::Waiting for a member of the Verana Council to validate participant $participant_id (${label}) in ${VERANA_FRONTEND_URL}"
+  while [ "$waited" -lt "$COUNCIL_VALIDATION_WAIT" ]; do
+    sleep 20
+    waited=$((waited + 20))
+    state=$(participant_op_state "$participant_id")
+    if [ "$state" = "VALIDATED" ]; then
+      ok "A member of the Verana Council validated participant $participant_id"
+      return 0
+    fi
+  done
+  err "Participant $participant_id is still ${state:-unknown} after $((COUNCIL_VALIDATION_WAIT / 60)) minutes. Run again once a member of the Verana Council has validated it."
+  return 1
 }
 
 # Read a VS Agent's public DID from its did:webvh log. Each line of the log is

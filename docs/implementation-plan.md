@@ -17,7 +17,7 @@ Deploy a Verifiable Service (VS) for the Digital Product Passport (DPP) demo tha
 
 1. Runs the Verana **vs-agent** in Kubernetes via GitHub Actions, following the exact deployment pattern of `verana-demos`.
 2. Is a **standalone** agent (`agentMode: standalone`) that owns its own **Corporation** and its own **Ecosystem** ("DPP Ecosystem") with a DPP credential schema, so DPP issuers/verifiers can later onboard as `delegated` children (same pattern as `issuer-*/verifier-*` in verana-demos).
-3. Obtains its own ECS **Organization** and **Service** credentials by onboarding against the shared `ecs-ecosystem` operated by [`verana-labs/verana-deploy`](https://github.com/verana-labs/verana-deploy) (it does *not* issue those to itself).
+3. Obtains its own ECS **Organization** and **Service** credentials by onboarding against the ECS Ecosystem of the Verana Council, whose VS Agent is deployed by [`verana-labs/verana-deploy`](https://github.com/verana-labs/verana-deploy) (it does *not* issue the Organization credential to itself).
 4. Is discoverable in [Verana Search (devnet)](https://search.devnet.verana.network) / the [Trust Graph API](https://graph.devnet.verana.network/docs) under a DPP identity.
 5. Once the ecosystem root exists, the same Corporation also operates two of its own services under that Corporation (D8): a **verification service** holding a `VERIFIER` participant entry, which requests and checks passport presentations; and an **Issuer grantor service** holding an `ISSUER_GRANTOR` participant entry, which validates new issuer onboarding requests against the governance framework. Neither service issues product passports, and neither holds any brand's keys.
 
@@ -25,7 +25,7 @@ Deploy a Verifiable Service (VS) for the Digital Product Passport (DPP) demo tha
 
 - DPP issuer/verifier applications (web or chatbot) for brands — deferred to Phase 6. The operator-run verification and Issuer grantor services (item 5) are ecosystem infrastructure, not brand applications; they are built in Phase 6 immediately after the first deployment, before brand issuers onboard.
 - A playground/tutorial front-end — deferred.
-- Testnet deployment — devnet first; testnet promotion is Phase 6 and needs the cross-cluster ECS onboarding validation done from the `verana-deploy` cluster (see §9).
+- Testnet deployment — devnet first; testnet promotion is Phase 6. On both networks a member of the Verana Council validates the ECS Organization request in the Verana frontend (see §9).
 
 ---
 
@@ -34,7 +34,7 @@ Deploy a Verifiable Service (VS) for the Digital Product Passport (DPP) demo tha
 From `verana-demos` (see its README for the full description):
 
 ```text
-ecs-ecosystem               ← shared ECS authority (verana-deploy, NOT in scope here)
+Verana Council VS Agent     ← ECS authority and Organization issuer (verana-deploy, NOT in scope here)
 └── organization-vs         ← standalone agent, owns the deployment's only Corporation
     └── "example" Ecosystem ← created by organization-vs, children onboard against it
         ├── issuer-*        ← delegated children (AGENT_MODE=delegated)
@@ -54,10 +54,10 @@ Key properties we deliberately preserve:
 ## 3. Target architecture
 
 ```text
-ecs-ecosystem                      ← shared, from verana-deploy (prerequisite, unchanged)
+Verana Council VS Agent            ← from verana-deploy (prerequisite, unchanged)
 └── dpp-vs                         ← NEW standalone agent in this repo (clone of organization-vs)
     │   Corporation: <new DPP corporation>          (bootstrap-corporation)
-    │   ECS credentials: Organization + Service     (via ecs-org-issuer onboarding)
+    │   ECS credentials: Organization + Service     (via onboarding with the Council)
     └── "DPP" Ecosystem            ← NEW, created by dpp-vs (create-dpp-ecosystem)
         │   DPP credential schema  (`passport/papapo-product-passport.schema.json`, CUSTOM_SCHEMA_BASE_ID=dpp)
         │   Root participant: dpp-vs (ECOSYSTEM role)
@@ -186,10 +186,10 @@ Steps, in order (same step model as demos; `step=all` runs the whole chain):
 |---|---|
 | Branch validation | Unchanged logic (`main` → testnet/`main`, `vs/<net>-<name>`). Deploy DPP from `vs/devnet-dpp`. |
 | Load configuration | Source `dpp-vs/config.env`. |
-| Resolve ECS Ecosystem DID | Unchanged — read live from `https://ecs-ecosystem.<network>.verana.network/.well-known/did.jsonl`. Fails if `verana-deploy` ECS is not up on that network. |
+| Resolve ECS Ecosystem DID | Read live from `https://council.<network>.verana.network/.well-known/did.jsonl`: the DID of the Verana Council VS Agent. Fails if that agent is not up on that network. |
 | `bootstrap-corporation` | Step name unchanged. Uses `DPP_VS_MNEMONIC` + `DPP_VS_AGENT_MNEMONIC` (see §7). Keep the "re-resolve `deployment.yaml` after bootstrap on `all` runs" step — the agent needs `VERANA_CORPORATION_ID` at boot. |
 | `deploy` | K8s secret `dpp-vs-secrets`; Helm release `dpp`. |
-| `validate-ecs-onboarding` | Unchanged logic: operator creates Service `ISSUER` (self-create, OPEN schema) + Organization `HOLDER` (`StartParticipantOP`) entries naming the agent account as `vs_operator`; validate the agent's pending flow on `ecs-org-issuer` (port-forwarded `3101` on devnet, same cluster). |
+| `ecs-onboarding` | Operator creates Service `ISSUER` (self-create, OPEN schema) + Organization `HOLDER` (`StartParticipantOP`, validator = the `ISSUER` entry of the Verana Council VS Agent) entries naming the agent account as `vs_operator`. The last step of the job then waits, up to `COUNCIL_VALIDATION_WAIT` seconds (default 1800), for a member of the Verana Council to validate the `HOLDER` entry in the Verana frontend. A run that times out is run again after the validation. |
 | `create-example-ecosystem` → **`create-dpp-ecosystem`** | Renamed. `create_ecosystem` → `create_credential_schema` (schema JSON read in place from `$PASSPORT_SCHEMA_FILE` under `passport/` — §5.4, no `dpp-vs/schema.json` copy; holder mode `HOLDER_MODE_ISSUER_OP` from `common/common.sh`) → `create_root_participant`. Must stay idempotent (`find_ecosystem_for_did` check first). **Deviation from the reference (D8): issuer onboarding mode is `ONBOARDING_MODE_GRANTOR`, not `ONBOARDING_MODE_ECOSYSTEM`** — new issuers are validated by the operator-run Issuer grantor service (§3, Phase 6), not directly by the ecosystem root. Verifier onboarding stays `ONBOARDING_MODE_OPEN` so the operator-run verification service and later third-party verifiers can self-create their `VERIFIER` entries. Because the on-chain schema is immutable, this mode must be set at first creation; changing it later means creating a new schema. |
 
 ---
@@ -201,8 +201,8 @@ Steps, in order (same step model as demos; `step=all` runs the whole chain):
 1. **Corporation** (`verana.co.v1`) + blanket `OperatorAuthorization` for the operator account (`OA_MSGS_ECOSYSTEM`).
 2. **Participant entries on the shared ECS schemas** (operator-signed, agent account as `vs_operator`):
    - `ISSUER` on the ECS *Service* schema (self-created, OPEN).
-   - `HOLDER` on the ECS *Organization* schema (`StartParticipantOP`, validated by `ecs-org-issuer`).
-3. **ECS credentials**: Organization credential (issued by `ecs-org-issuer` after validation of the agent's `ECS_CLAIMS_ORG_*`) and Service credential (self-issued by the agent against its Service `ISSUER` entry).
+   - `HOLDER` on the ECS *Organization* schema (`StartParticipantOP`, validated by a member of the Verana Council in the Verana frontend).
+3. **ECS credentials**: Organization credential (issued by the Verana Council VS Agent after validation of the agent's `ECS_CLAIMS_ORG_*`) and Service credential (self-issued by the agent against its Service `ISSUER` entry).
 4. **DPP Ecosystem** + **DPP credential schema** (issuer onboarding mode `GRANTOR` per D8, verifier mode `OPEN`, holder mode `ISSUER_OP`) + **root participant** (ECOSYSTEM role, dpp-vs DID). The agent then publishes the schema's VTJSC in its DID document. The `ISSUER_GRANTOR` and `VERIFIER` entries for the operator-run services are **not** created in this run — they are created when those services deploy (Phase 6), each naming its own agent account as `vs_operator`; until the grantor service exists, no new issuer can complete onboarding, which is the intended order.
 
 ### 6.2 DPP credential schema — first draft: `passport/`
@@ -362,7 +362,7 @@ Behaviour inherited from the demos, to keep:
   | No local copy of the kubeconfig | GitHub secrets are write-only — get the file from whoever set the `KUBECONFIG` secret, or (last resort) print these `can-i` results from a throwaway Actions run in this repo. Never print the kubeconfig itself. |
 
 - [ ] Confirm cluster, storage class (`kubectl get storageclass csi-cinder-high-speed`), ingress class and cert-manager issuer (existence only; `Forbidden` just means no cluster-scope read — an admin can confirm), DNS + cert-manager for `*.dpp.demos.devnet.verana.network` (D1 naming: hosts under `dpp.demos.devnet.verana.network`).
-- [ ] Confirm `ecs-ecosystem` + `ecs-org-issuer` are live on devnet (check ECS Ecosystem DID endpoint).
+- [ ] Confirm the Verana Council VS Agent is live on devnet (check `https://council.devnet.verana.network/.well-known/did.jsonl`).
 - [ ] Create + fund the two accounts; add the 4 repository secrets (§7).
 
 **Exit criteria:** RBAC checks above all `yes` (directly or after the one-time admin pre-creation), secrets present, DNS resolves to the ingress, ECS endpoints answer.
@@ -407,7 +407,7 @@ Runbook (from branch `vs/devnet-dpp`, Actions → `1_ Deploy DPP VS`):
 - [ ] **Third-party credential schemas (§6.4, step 2):** design the MaterialCompliance schema (supplier-issued, **one credential per material lot** covering every product using that lot — REACH leather case), then TestAttestation (accredited labs) and ManufacturingAttestation (factories), each as its own schema under the DPP `ECOSYSTEM_ID` with its own root participant. Onboard each third party as an *independent organization* (its own agent/DID; the operator only validates its ISSUER participation per the EGF's per-schema accreditation categories) — do not model real third parties as operator-hosted children. Verifier/presentation flows join passport → lot credential → test evidence via `materials[].materialLotId`.
 - [ ] Additional product schemas: for each new product, add its credential schema under the existing DPP `ECOSYSTEM_ID` (`create_credential_schema` + `create_root_participant` per schema) — the ecosystem, `dpp-vs` agent, and Corporation are reused unchanged. Schema-specific issuers/verifiers onboard against that schema's root participant. The demos code assumes one custom schema per ecosystem (single `CUSTOM_SCHEMA_ID`, single-schema discovery), so this step includes generalising schema handling to a per-schema config (name → schema file → base ID).
 - [ ] Playground-style front-end tying issuer/verifier together.
-- [ ] Testnet promotion (branch `vs/testnet-dpp`) — note ECS Organization onboarding validation must then be performed from the `verana-deploy` cluster, as on testnet the issuer is not reachable from the demos cluster.
+- [ ] Testnet promotion (branch `vs/testnet-dpp`) — the ECS Organization onboarding is validated by a member of the Verana Council in the Verana frontend, as on devnet.
 
 ---
 
@@ -456,7 +456,7 @@ Plus UI checks:
 - **Single-operator blast radius:** the operator mnemonic can archive the ecosystem and revoke participants. Keep it out of the cluster (see §7 improvement) and consider a separate operator account per network.
 - **`common.sh` drift:** vendored copy will diverge from verana-demos upstream; schedule deliberate re-syncs with diff review.
 - **Admin API exposure:** never publish an admin ingress — the agent authenticates by TCP peer address and the ingress controller sits inside the trusted pod CIDR, so an admin ingress would serve the Admin API unauthenticated.
-- **ECS dependency:** the shared `ecs-ecosystem`/`ecs-org-issuer` must be deployed and reachable on the target network before Phase 4; its DID changes on wallet wipes, which is why it is always resolved live.
+- **ECS dependency:** the Verana Council VS Agent must be deployed and reachable on the target network before Phase 4; its DID changes on wallet wipes, which is why it is always resolved live. A member of the Verana Council must be available to validate the ECS Organization request.
 - **DPP schema complexity:** the full `passport/` draft uses JSON Schema 2020-12 features the demos' flat `example` schema does not (`$defs`/`$ref`, `allOf`/`if`/`then`, `pattern`, `additionalProperties: false`, nested arrays/objects). Agent-side, this is now understood and resolved (D4, §6.2): the `$defs` must be inlined or the agent's `credentialSubject`-only AJV compile throws at issuance time — covered by a two-path regression check. Chain-side, on-chain `MsgCreateCredentialSchema` acceptance of the full document is still only proven by submitting it — hence the Phase 4 gate with the min schema as the staged fallback. See also D7 (AnonCreds flatness).
 
 ---
@@ -467,6 +467,6 @@ Plus UI checks:
 - [`verana-demos` README](https://github.com/verana-labs/verana-demos) — architecture, workflow order, ingress rules, local development.
 - `verana-demos/.github/workflows/1_deploy-organization-vs.yml` — the workflow this plan adapts.
 - `verana-demos/common/common.sh` — shared provisioning helpers.
-- [`verana-labs/verana-deploy`](https://github.com/verana-labs/verana-deploy) — the shared `ecs-ecosystem` and `ecs-org-issuer`.
+- [`verana-labs/verana-deploy`](https://github.com/verana-labs/verana-deploy) — the Verana Council VS Agent (`docs/council.md`).
 - [`verana-labs/vs-agent`](https://github.com/verana-labs/vs-agent) — the agent (v2 Admin API, `ECS_CLAIMS_*` configuration).
 - [Verana Search (devnet)](https://search.devnet.verana.network) · [Trust Graph API (devnet)](https://graph.devnet.verana.network/docs) · [Indexer trust resolution](https://idx.devnet.verana.network)

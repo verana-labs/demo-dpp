@@ -9,8 +9,9 @@
 #   2. Deploys the VS Agent via Docker + ngrok, bound to that Corporation
 #   3. Assigns the agent its Participant entries: a HOLDER entry on the ECS
 #      Organization schema and an ISSUER entry on the ECS Service schema
-#   4. Validates the pending HOLDER onboarding request on the ECS
-#      Organization credential issuer, which then delivers the credential
+#   4. Waits for a member of the Verana Council to validate the pending
+#      HOLDER onboarding request in the Verana frontend. The Council VS Agent
+#      then delivers the Organization credential
 #   5. Creates dpp-vs's own "dpp" Ecosystem, credential schema
 #      and root participant, for issuer-*/verifier- demo services to
 #      onboard against
@@ -29,12 +30,11 @@
 #                  holding both, so these MUST be different accounts.
 #
 # Prerequisites:
-#   - Docker, ngrok (authenticated), curl, jq, veranad, kubectl
+#   - Docker, ngrok (authenticated), curl, jq, veranad
 #   - MNEMONIC (or DPP_VS_MNEMONIC) and AGENT_MNEMONIC (or
 #     DPP_VS_AGENT_MNEMONIC) — two funded devnet accounts
-#   - kubectl access to the cluster running verana-deploy's ecs-org-issuer
-#     release (for step 4) — port-forward it before running this script:
-#       kubectl port-forward -n vna-<network>-1 svc/ecs-org-issuer 3101:3000
+#   - A member of the Verana Council, to validate the ECS Organization
+#     request of step 4 in the Verana frontend
 #
 # Usage:
 #   source dpp-vs/config.env
@@ -82,8 +82,9 @@ EGF_DOC_DIGEST="${EGF_DOC_DIGEST:-}"
 # Organization and Service details.
 # The agent reads these as ECS_CLAIMS_* container variables
 # [VSA-VTI-CFG-ENV-ECS]. It sends the ORG_* group on the onboarding request it
-# opens with the ECS Organization credential issuer, which signs what it
-# receives, and it self-issues the Service credential from the SERVICE_* group.
+# opens with the Verana Council VS Agent, which signs what it receives once a
+# member of the Council validates the request, and it self-issues the Service
+# credential from the SERVICE_* group.
 #
 # The two names differ on purpose: ORG_NAME names the legal entity, SERVICE_NAME
 # names the service, and the Service name is what an explorer shows for the
@@ -279,8 +280,8 @@ ECS_SERVICE_SCHEMA_ID=$(find_ecs_schema_id "$ECS_ECOSYSTEM_DID" "ServiceCredenti
 }
 ok "ECS schema IDs: organization=$ECS_ORG_SCHEMA_ID service=$ECS_SERVICE_SCHEMA_ID"
 
-# The Organization credential comes from the service the ECS Ecosystem
-# corporation assigned the ISSUER entry to, not from the ecosystem agent.
+# The Verana Council VS Agent is the issuer of the Organization credential,
+# with its own ISSUER entry on the Organization schema.
 ECS_ORG_ISSUER_DID=$(fetch_did_from_log "$ECS_ORG_ISSUER_PUBLIC_URL") || {
   err "Could not read the DID of the ECS Organization credential issuer at $ECS_ORG_ISSUER_PUBLIC_URL"
   exit 1
@@ -288,7 +289,7 @@ ECS_ORG_ISSUER_DID=$(fetch_did_from_log "$ECS_ORG_ISSUER_PUBLIC_URL") || {
 ECS_ORG_ISSUER_PARTICIPANT_ID=$(find_active_participant \
   "$ECS_ORG_SCHEMA_ID" "$PP_IDX_ROLE_ISSUER" "$ECS_ORG_ISSUER_DID") || {
   err "$ECS_ORG_ISSUER_DID holds no active ISSUER entry on the ECS Organization schema."
-  err "Run verana-deploy scripts/ecs-ecosystem/devnet-setup.sh phase 3 first."
+  err "The Verana Council VS Agent issues the Organization credentials on ${NETWORK}: check ${ECS_ORG_ISSUER_PUBLIC_URL}."
   exit 1
 }
 ok "ECS Organization issuer: $ECS_ORG_ISSUER_DID (participant $ECS_ORG_ISSUER_PARTICIPANT_ID)"
@@ -324,7 +325,7 @@ fi
 # --- The Organization HOLDER entry -------------------------------------------
 # Its validator is the ISSUER entry above, so validating it is part of a
 # credential exchange. The agent reacts to this transaction and sends the
-# onboarding request by itself; step 4b then completes it.
+# onboarding request by itself; step 4b then waits for the Council.
 EXISTING_HOLDER=$(find_participant_with_vs_operator \
   "$ECS_ORG_SCHEMA_ID" "$PP_ROLE_HOLDER" "$AGENT_DID")
 EXISTING_HOLDER_ID=$(echo "${EXISTING_HOLDER:-}" | cut -f1)
@@ -332,6 +333,7 @@ EXISTING_HOLDER_VS_OP=$(echo "${EXISTING_HOLDER:-}" | cut -f2)
 
 if [ -n "$EXISTING_HOLDER_ID" ] && [ "$EXISTING_HOLDER_VS_OP" = "$AGENT_ADDR" ]; then
   ok "Organization HOLDER participant $EXISTING_HOLDER_ID already names $AGENT_ADDR"
+  HOLDER_ID="$EXISTING_HOLDER_ID"
 else
   if [ -n "$EXISTING_HOLDER_ID" ]; then
     warn "Organization HOLDER participant $EXISTING_HOLDER_ID names '$EXISTING_HOLDER_VS_OP' — revoking it"
@@ -342,30 +344,21 @@ else
   fi
   # HOLDER is the one role whose vs_operator may send TriggerResolver, and that
   # is the only message this participant needs from the agent.
-  start_participant_op "$CORPORATION" "$PP_ROLE_HOLDER" "$ECS_ORG_ISSUER_PARTICIPANT_ID" "$AGENT_DID" \
-    "$AGENT_ADDR" "$VSOA_HOLDER" > /dev/null
+  HOLDER_ID=$(start_participant_op "$CORPORATION" "$PP_ROLE_HOLDER" "$ECS_ORG_ISSUER_PARTICIPANT_ID" "$AGENT_DID" \
+    "$AGENT_ADDR" "$VSOA_HOLDER")
 fi
 
 # =============================================================================
-# STEP 4b: Complete the onboarding process on the Organization credential issuer
+# STEP 4b: Wait for the Verana Council to validate the onboarding
 # =============================================================================
+# The agent composed the Organization claims from its ECS_CLAIMS_ORG_*
+# variables and sent them on the request. A member of the Verana Council
+# validates the entry in the Verana frontend, and the Council VS Agent then
+# delivers the credential. Run the script again when the wait times out.
 
-log "Step 4b: Validate the ECS onboarding on the Organization credential issuer"
+log "Step 4b: Wait for the Verana Council to validate the ECS onboarding"
 
-if has_completed_flow "$ECS_ORG_ISSUER_ADMIN_API" "$AGENT_DID" "$ECS_ORG_SCHEMA_ID"; then
-  ok "Already validated — skipping"
-else
-  log "Waiting for the agent to send the onboarding request (up to 60s)..."
-  sleep 20
-
-  # The agent composed the Organization claims from its ECS_CLAIMS_ORG_*
-  # variables and sent them on the request, so this step only validates.
-  if ! validate_pending_flow "$ECS_ORG_ISSUER_ADMIN_API" "$AGENT_DID" "$ECS_ORG_SCHEMA_ID"; then
-    err "Could not validate on the Organization credential issuer ($ECS_ORG_ISSUER_ADMIN_API)."
-    err "Is it port-forwarded? kubectl port-forward -n vna-${NETWORK}-1 svc/ecs-org-issuer 3101:3000"
-    exit 1
-  fi
-fi
+wait_for_council_validation "$HOLDER_ID" "ECS Organization of $AGENT_DID"
 
 log "Waiting for the Organization and Service credentials to appear (up to 30s)..."
 sleep 20

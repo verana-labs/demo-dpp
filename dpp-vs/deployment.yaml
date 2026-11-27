@@ -4,7 +4,7 @@
 # The workflow substitutes the __NETWORK__, __VS_NAME__, __CORPORATION_ID__
 # and __ECS_ECOSYSTEM_DID__ placeholders at deploy time (CORPORATION_ID comes
 # from config.env or the workflow input, and the ECS Ecosystem DID is read from
-# the ECS Ecosystem agent of the network).
+# the Verana Council VS Agent of the network).
 # Example: vs/testnet-dpp → __NETWORK__=testnet, __VS_NAME__=dpp
 #
 # The public host omits the network. *.dpp.demos.verana.network resolves to the
@@ -45,8 +45,8 @@ veranaChainId: "vna-__NETWORK__-1"
 veranaCorporationId: "__CORPORATION_ID__"
 
 agentMode: "standalone"
-# The shared ECS Ecosystem this service joins to obtain its own ECS
-# credentials — see verana-deploy/scripts/ecs-ecosystem.
+# The ECS Ecosystem this service joins to obtain its own ECS credentials: the
+# DID of the Verana Council VS Agent (see verana-deploy docs/council.md).
 trustedEcsEcosystemDids: "__ECS_ECOSYSTEM_DID__"
 
 resources:
@@ -90,8 +90,9 @@ extraEnv:
         key: DPP_VS_AGENT_MNEMONIC
   # ECS credential claims [VSA-VTI-CFG-ENV-ECS]. The agent composes its own ECS
   # credentials from these. It sends the Organization claims on the onboarding
-  # request it opens with ecs-org-issuer, which only validates them, and it
-  # self-issues the Service credential against its own ISSUER entry.
+  # request it opens with the Verana Council VS Agent, which signs them once a
+  # member of the Council validates the request, and it self-issues the Service
+  # credential against its own ISSUER entry.
   #
   # The two names differ on purpose. The Organization credential names the
   # legal entity; the Service credential names the service, and the Service
